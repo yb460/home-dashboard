@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.2.0";
+const ZDC_VERSION = "0.2.1";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -71,7 +71,7 @@ const ZDC_WEATHER_ICONS = {
 
 const ZDC_BAD = new Set(["", "unknown", "unavailable", "none", "None"]);
 
-const ZDC_SHORT_DAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש״ק"];
+const ZDC_SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // Arc geometry: a half-ellipse (centre 500,300, radii 440 x 240) from t=0 (left) to t=1 (right).
 const arcPoint = (t) => {
@@ -477,9 +477,6 @@ class ZmanDisplayCard extends HTMLElement {
       const hours = (this._hourly || []).filter((f) => new Date(f.datetime) > now).slice(0, c.forecast_hours);
       const days = (this._daily || []).slice(0, c.forecast_days);
       const today = days[0];
-      const lo = Math.min(...days.map((d) => d.templow ?? d.temperature));
-      const hi = Math.max(...days.map((d) => d.temperature));
-      const span = Math.max(1, hi - lo);
       tiles.push(`<div class="tile weather">
         <div class="wnow">
           <ha-icon icon="${icon(w.state)}"></ha-icon>
@@ -497,18 +494,19 @@ class ZmanDisplayCard extends HTMLElement {
           .map((f, i) => {
             const d = new Date(f.datetime);
             const low = f.templow ?? f.temperature;
-            return `<div class="dy"><span class="dn">${i === 0 ? "היום" : ZDC_SHORT_DAYS[d.getDay()]}</span><ha-icon icon="${icon(f.condition)}"></ha-icon>
+            return `<div class="dy"><span class="dn">${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</span><ha-icon icon="${icon(f.condition)}"></ha-icon>
               <span class="dhi">${Math.round(f.temperature)}°</span>
-              <span class="bar"><i style="bottom:${(((low - lo) / span) * 100).toFixed(1)}%;top:${(((hi - f.temperature) / span) * 100).toFixed(1)}%"></i></span>
+              <span class="bar"></span>
               <span class="dlo">${Math.round(low)}°</span>
-              <em>${f.precipitation_probability ? "💧" + f.precipitation_probability + "%" : ""}</em></div>`;
+              <em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></div>`;
           })
           .join("")}</div>` : ""}
       </div>`);
     }
 
     if ((c.rooms || []).length) {
-      tiles.push(`<div class="tile rooms">${c.rooms
+      const cols = Math.ceil(c.rooms.length / (c.rooms.length > 4 ? 2 : 1));
+      tiles.push(`<div class="tile rooms" style="--cols:${cols}">${c.rooms
         .map((r) => {
           const t = parseFloat(this._val(r.entity));
           const h = parseFloat(this._val(r.humidity));
@@ -698,19 +696,18 @@ main { flex:1; display:flex; align-items:center; justify-content:center; min-hei
 .hours { display:grid; grid-template-columns:repeat(auto-fit, minmax(42px, 1fr)); margin-top:12px; gap:2px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.08); }
 .hr { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; }
 .hr small { color:rgba(247,241,230,.6); } .hr ha-icon { --mdc-icon-size:24px; color:#cfe3ff; } .hr em { font-style:normal; font-size:11px; color:#8fd3ff; min-height:13px; }
-.days { display:grid; grid-template-columns:repeat(auto-fit, minmax(48px, 1fr)); gap:4px; margin-top:10px; direction:rtl; }
+.days { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; margin-top:10px; }
 .dy { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:clamp(13px, 1vw, 16px); }
 .dy .dn { color:rgba(247,241,230,.75); font-weight:500; } .dy ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
 .dlo { color:#8fd3ff; } .dhi { color:#fff; font-weight:600; }
-.bar { position:relative; width:6px; height:34px; border-radius:3px; background:rgba(255,255,255,.08); }
-.bar i { position:absolute; left:0; right:0; border-radius:3px; background:linear-gradient(0deg, #6fc3ff, #ffd27a, #ff9a5a); }
+.bar { width:6px; height:34px; border-radius:3px; background:linear-gradient(0deg, #6fc3ff, #ffd27a, #ff9a5a); opacity:.85; }
 .dy em { font-style:normal; font-size:11px; color:#8fd3ff; min-height:13px; }
-.rooms { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:10px; align-content:start; }
-.room { display:flex; flex-direction:column; align-items:center; padding:8px 4px; border-radius:16px; background:rgba(255,255,255,.04); border:1px solid transparent; }
-.room span { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:rgba(247,241,230,.6); }
-.room b { font-size:clamp(22px, 1.9vw, 30px); font-weight:500; }
-.room small { font-size:11px; color:rgba(247,241,230,.5); }
-.room ha-icon { --mdc-icon-size:22px; }
+.rooms { display:flex; flex-wrap:wrap; gap:10px; align-content:stretch; }
+.room { box-sizing:border-box; flex:1 1 calc(100% / var(--cols, 4) - 10px); min-width:84px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:10px 4px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid transparent; }
+.room span { font-size:clamp(12px, .9vw, 15px); text-transform:uppercase; letter-spacing:1px; color:rgba(247,241,230,.6); }
+.room b { font-size:clamp(26px, 2.4vw, 42px); font-weight:500; line-height:1.05; }
+.room small { font-size:clamp(11px, .85vw, 14px); color:rgba(247,241,230,.5); }
+.room ha-icon { --mdc-icon-size:clamp(22px, 1.8vw, 30px); }
 .room.cold { border-color:rgba(100,200,255,.4); } .room.cold ha-icon { color:#7fd0ff; }
 .room.ok { border-color:rgba(130,220,150,.35); } .room.ok ha-icon { color:#8fe3a0; }
 .room.warm { border-color:rgba(255,190,100,.45); } .room.warm ha-icon { color:#ffc46b; }
