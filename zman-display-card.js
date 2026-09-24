@@ -455,7 +455,6 @@ class ZmanDisplayCard extends HTMLElement {
     const w = this._state(c.weather);
     if (w) {
       const a = w.attributes || {};
-      const unit = a.temperature_unit || "°";
       const hours = (this._hourly || []).filter((f) => new Date(f.datetime) > now).slice(0, 6);
       tiles.push(`<div class="tile weather">
         <div class="wnow">
@@ -469,7 +468,6 @@ class ZmanDisplayCard extends HTMLElement {
             return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${ZDC_WEATHER_ICONS[f.condition] || "mdi:weather-cloudy"}"></ha-icon><b>${Math.round(f.temperature)}°</b>${f.precipitation_probability ? `<em>${f.precipitation_probability}%</em>` : ""}</div>`;
           })
           .join("")}</div>` : ""}
-        <span class="unit" hidden>${esc(unit)}</span>
       </div>`);
     }
 
@@ -675,9 +673,9 @@ main { flex:1; display:flex; align-items:center; justify-content:center; min-hei
 }
 `;
 
-customElements.define("zman-display-card", ZmanDisplayCard);
+if (!customElements.get("zman-display-card")) customElements.define("zman-display-card", ZmanDisplayCard);
 window.customCards = window.customCards || [];
-window.customCards.push({
+if (!window.customCards.some((c) => c.type === "zman-display-card")) window.customCards.push({
   type: "zman-display-card",
   name: "Zman Display Card",
   description: "Full-screen living wall display: sky that follows the zmanim, a day arc, Shabbos candlelight mode.",
