@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.3.1";
+const ZDC_VERSION = "0.4.0";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -330,7 +330,10 @@ class ZmanDisplayCard extends HTMLElement {
     this._set("hebrew", this._hebrewHtml(now));
     this._set("alerts", this._alertsHtml());
     const mainChanged = this._set("main", shabbos ? this._shabbosHtml(now) : this._arcHtml(now, zmanim));
-    this._set("foot", this._footHtml(now));
+    if (this._set("foot", this._footHtml(now))) {
+      const track = this._el.foot.querySelector(".track");
+      if (track) track.style.animationDelay = `-${((Date.now() / 1000) % Number(track.dataset.dur)).toFixed(2)}s`;
+    }
     this._fit(mainChanged);
     this._updateLive(now);
   }
@@ -546,6 +549,7 @@ class ZmanDisplayCard extends HTMLElement {
               <em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></div>`;
           })
           .join("")}</div>` : ""}
+        ${this._tickerHtml(hours, days, icon)}
       </div>`);
     }
 
@@ -590,6 +594,28 @@ class ZmanDisplayCard extends HTMLElement {
         .join("")}</div>`);
     }
     return `<div class="tiles n${tiles.length}">${tiles.join("")}</div>`;
+  }
+
+  // Shabbos-mode forecast: hourly then daily items in one slowly scrolling strip.
+  _tickerHtml(hours, days, icon) {
+    if (!hours.length && !days.length) return "";
+    const items =
+      (hours.length ? `<span class="tlabel">Hourly</span>` : "") +
+      hours
+        .map((f) => {
+          const d = new Date(f.datetime);
+          return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${f.precipitation_probability ? `<em>${f.precipitation_probability}%</em>` : ""}</span>`;
+        })
+        .join("") +
+      (days.length ? `<span class="tlabel">7 days</span>` : "") +
+      days
+        .map((f, i) => {
+          const d = new Date(f.datetime);
+          return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b><i>${Math.round(f.templow ?? f.temperature)}°</i>${f.precipitation_probability ? `<em>${f.precipitation_probability}%</em>` : ""}</span>`;
+        })
+        .join("");
+    const dur = Math.max(20, (hours.length + days.length) * 3);
+    return `<div class="ticker"><div class="track" data-dur="${dur}" style="animation-duration:${dur}s">${items}${items}</div></div>`;
   }
 
   // Per-second updates that must not re-create DOM (keeps animations smooth).
@@ -725,12 +751,31 @@ main > * { flex:none; }
 .sname { font-size:18px; display:flex; flex-direction:column; }
 .sname small { color:rgba(255,236,210,.5); font-size:.78em; }
 .srow b { direction:ltr; font-variant-numeric:tabular-nums; color:#fff3e0; font-size:20px; white-space:nowrap; }
-/* Shabbos: the schedule gets the room, the bottom row becomes one slim strip. */
+/* Shabbos: the schedule gets the room; the bottom row is weather + a scrolling
+   forecast strip, and small room tiles. */
+.ticker { display:none; }
 .shabbos .hours, .shabbos .days, .shabbos .tiles .events { display:none; }
-.shabbos .tiles { grid-template-columns:minmax(0, 1fr) minmax(0, 2.6fr); }
+.shabbos .tiles { grid-template-columns:minmax(0, 2.2fr) minmax(0, 1fr); }
 .shabbos .tile { padding:10px 16px; }
-.shabbos .room { flex:1 1 calc(100% / var(--n, 7) - 10px); padding:6px 2px; }
-.shabbos .room b { font-size:30px; } .shabbos .room span { font-size:12px; letter-spacing:.5px; }
+.shabbos .weather { display:flex; align-items:center; gap:16px; }
+.shabbos .wnow { flex:none; gap:10px; }
+.shabbos .wnow ha-icon { --mdc-icon-size:44px; }
+.shabbos .wtemp { font-size:42px; }
+.shabbos .whilo { font-size:17px; margin-inline-start:6px; }
+.shabbos .ticker { display:block; flex:1; min-width:0; overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.track { display:flex; align-items:center; gap:22px; width:max-content; animation:marquee linear infinite; }
+@keyframes marquee { to { transform:translateX(calc(-50% - 11px)); } }
+.ti { display:flex; flex-direction:column; align-items:center; gap:1px; font-size:15px; min-width:44px; }
+.ti small { color:rgba(247,241,230,.6); font-size:13px; } .ti ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
+.ti b { font-weight:600; } .ti i { font-style:normal; color:#8fd3ff; font-size:13px; } .ti em { font-style:normal; font-size:11px; color:#8fd3ff; }
+.tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#ffc46b;
+  padding:4px 2px; border-left:1px solid rgba(255,196,107,.35); }
+.shabbos .rooms { gap:6px; }
+.shabbos .room { flex:1 1 calc(100% / 4 - 6px); padding:3px 2px; gap:0; border-radius:12px; }
+.shabbos .room ha-icon, .shabbos .room small { display:none; }
+.shabbos .room b { font-size:20px; } .shabbos .room span { font-size:10px; letter-spacing:.3px; }
+.shabbos .mode { font-size:9px; padding:0 5px; }
 
 .tiles { display:grid; gap:16px; grid-template-columns:minmax(0, 1.75fr) minmax(0, 1fr) minmax(0, 1fr); align-items:stretch; }
 .tiles.n1, .tiles.n2 { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
