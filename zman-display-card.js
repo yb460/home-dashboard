@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.5.1";
+const ZDC_VERSION = "0.5.2";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -95,9 +95,14 @@ const esc = (s) =>
 
 const pad = (n) => String(n).padStart(2, "0");
 
-// Chance of rain and humidity for one forecast entry, always shown (dash when unknown).
-const pct = (v) => (v == null || isNaN(v) ? "–" : `${Math.round(v)}%`);
-const rainHum = (f) => `<em class="rain">☂ ${pct(f.precipitation_probability)}</em><em class="hum">💧${pct(f.humidity)}</em>`;
+// Chance of rain and humidity for one forecast entry, each shown only when above 50%
+// (the empty slot keeps every column the same height).
+const over50 = (v) => (v != null && !isNaN(v) && v > 50 ? `${Math.round(v)}%` : "");
+const rainHum = (f) => {
+  const rain = over50(f.precipitation_probability);
+  const hum = over50(f.humidity);
+  return `<em class="rain">${rain && `☂ ${rain}`}</em><em class="hum">${hum && `💧${hum}`}</em>`;
+};
 
 const fmtTime = (d) => (d ? `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}` : "--:--");
 
@@ -787,7 +792,7 @@ main > * { flex:none; }
 .ti { display:flex; flex-direction:column; align-items:center; gap:0; line-height:1.1; }
 .ti small { color:rgba(247,241,230,.75); font-size:16px; font-weight:500; } .ti ha-icon { --mdc-icon-size:30px; color:#cfe3ff; }
 .ti b { font-size:23px; font-weight:600; white-space:nowrap; } .ti i { font-style:normal; color:#8fd3ff; font-size:17px; margin-left:4px; }
-.ti em { font-style:normal; font-size:15px; line-height:1.15; white-space:nowrap; }
+.ti em { font-style:normal; font-size:15px; line-height:1.15; min-height:1.15em; white-space:nowrap; }
 .tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#ffc46b;
   text-align:center; padding:2px 3px; border-left:2px solid rgba(255,196,107,.45); }
 .shabbos .rooms { gap:6px; }
@@ -812,7 +817,7 @@ main > * { flex:none; }
 .hours { display:grid; grid-template-columns:repeat(auto-fit, minmax(42px, 1fr)); margin-top:12px; gap:2px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.08); }
 .hr { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; }
 .hr small { color:rgba(247,241,230,.6); } .hr ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
-.hr em, .dy em { font-style:normal; font-size:13px; line-height:1.2; white-space:nowrap; }
+.hr em, .dy em { font-style:normal; font-size:13px; line-height:1.2; min-height:1.2em; white-space:nowrap; }
 .days { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; margin-top:10px; }
 .dy { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:16px; }
 .dy .dn { color:rgba(247,241,230,.75); font-weight:500; } .dy ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
