@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.4.0";
+const ZDC_VERSION = "0.4.2";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -288,14 +288,28 @@ class ZmanDisplayCard extends HTMLElement {
     this._fitMain();
   }
 
-  // Shrink the middle section (e.g. a long Shabbos schedule) if it would overflow.
+  // Size the middle section (the Shabbos schedule) to fill the space it has:
+  // find the largest zoom (0.4x-1.4x) at which it still fits. Zoom re-flows the
+  // text, so growing it wraps rather than overflowing sideways.
   _fitMain() {
     const main = this._el?.main;
     const child = main?.firstElementChild;
     if (!child || child.classList.contains("arcwrap")) return;
-    child.style.transform = "";
-    const k = Math.min(1, main.clientHeight / child.scrollHeight, main.clientWidth / child.scrollWidth);
-    child.style.transform = k < 1 ? `scale(${k.toFixed(3)})` : "";
+    const box = main.getBoundingClientRect();
+    const fits = (z) => {
+      child.style.zoom = z;
+      const r = child.getBoundingClientRect();
+      return r.height <= box.height + 1 && r.width <= box.width + 1;
+    };
+    let lo = 0.4;
+    let hi = 1.4;
+    if (fits(hi)) lo = hi;
+    else for (let i = 0; i < 7; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid;
+      else hi = mid;
+    }
+    child.style.zoom = lo.toFixed(3);
   }
 
   _set(key, html) {
@@ -722,7 +736,7 @@ main > * { flex:none; }
 .ncount { direction:ltr; font-variant-numeric:tabular-nums; font-weight:300; font-size:3cqw; letter-spacing:2px; color:#fff; text-shadow:0 0 24px rgba(255,190,110,.6); }
 .nat { direction:ltr; color:rgba(247,241,230,.6); font-size:1.05cqw; }
 
-.shab { width:100%; transform-origin:center center; display:grid; grid-template-columns:minmax(300px, 0.75fr) 1.9fr; gap:28px; align-items:center; direction:rtl; }
+.shab { width:100%; transform-origin:center center; box-sizing:border-box; display:grid; grid-template-columns:minmax(300px, 0.75fr) 1.9fr; gap:28px; align-items:center; direction:rtl; }
 .shab-hero { text-align:center; }
 .candles { width:min(200px, 55%); height:auto; overflow:visible; }
 .halo { fill:rgba(255,170,70,.28); filter:blur(14px); animation:halo 3s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
@@ -739,10 +753,10 @@ main > * { flex:none; }
 .st span { font-size:20px; color:rgba(255,236,210,.85); }
 .st b { direction:ltr; font-size:61px; font-weight:700; color:#fff3e0; line-height:1.05; }
 .st small { color:rgba(255,236,210,.6); font-size:16px; }
-.scd { margin-top:16px; white-space:nowrap; display:inline-flex; align-items:baseline; gap:12px; padding:10px 22px; border-radius:999px;
+.scd { margin-top:14px; max-width:100%; box-sizing:border-box; flex-wrap:wrap; justify-content:center; display:inline-flex; align-items:baseline; column-gap:10px; padding:8px 18px; border-radius:999px;
   background:linear-gradient(90deg, rgba(255,180,90,.25), rgba(255,120,80,.15)); border:1px solid rgba(255,180,90,.5); box-shadow:0 0 30px rgba(255,150,70,.3); }
-.scd span { color:#ffd9a8; font-size:20px; }
-.scd b { direction:ltr; font-variant-numeric:tabular-nums; font-size:38px; font-weight:500; color:#fff; }
+.scd span { color:#ffd9a8; font-size:18px; white-space:nowrap; }
+.scd b { direction:ltr; font-variant-numeric:tabular-nums; font-size:32px; font-weight:500; color:#fff; white-space:nowrap; }
 .sched { column-width:280px; column-gap:14px; }
 .sday { break-inside:avoid; margin-bottom:14px; padding:14px 18px 10px; border-radius:22px; background:rgba(25,14,6,.55); border:1px solid rgba(255,190,110,.25); backdrop-filter:blur(12px); }
 .sday h3 { margin:0 0 8px; font-family:'Frank Ruhl Libre', serif; font-size:26px; color:#ffc46b; border-bottom:1px solid rgba(255,190,110,.25); padding-bottom:6px; }
@@ -751,31 +765,41 @@ main > * { flex:none; }
 .sname { font-size:18px; display:flex; flex-direction:column; }
 .sname small { color:rgba(255,236,210,.5); font-size:.78em; }
 .srow b { direction:ltr; font-variant-numeric:tabular-nums; color:#fff3e0; font-size:20px; white-space:nowrap; }
-/* Shabbos: the schedule gets the room; the bottom row is weather + a scrolling
-   forecast strip, and small room tiles. */
+/* Shabbos: compact header, the schedule in the middle, and a large bottom row
+   with weather (scrolling hourly + 7-day strip) and room temperatures. */
 .ticker { display:none; }
+.shabbos .content { gap:10px; padding:20px 28px; }
+.shabbos .hm { font-size:118px; }
+.shabbos .gdate { font-size:20px; margin-top:2px; }
+.shabbos .hdate { font-size:50px; }
+.shabbos .hparsha { font-size:32px; margin-top:0; }
+.shabbos .hday { font-size:19px; margin-top:2px; }
+.shabbos .pills { margin-top:6px; }
 .shabbos .hours, .shabbos .days, .shabbos .tiles .events { display:none; }
-.shabbos .tiles { grid-template-columns:minmax(0, 2.2fr) minmax(0, 1fr); }
-.shabbos .tile { padding:10px 16px; }
-.shabbos .weather { display:flex; align-items:center; gap:16px; }
-.shabbos .wnow { flex:none; gap:10px; }
-.shabbos .wnow ha-icon { --mdc-icon-size:44px; }
-.shabbos .wtemp { font-size:42px; }
-.shabbos .whilo { font-size:17px; margin-inline-start:6px; }
+.shabbos .tiles { grid-template-columns:minmax(0, 1.9fr) minmax(0, 1fr); gap:12px; }
+.shabbos .tile { padding:12px 16px; border-radius:20px; }
+.shabbos .weather { display:flex; align-items:center; gap:18px; }
+.shabbos .wnow { flex:none; gap:10px; flex-direction:column; align-items:flex-start; }
+.shabbos .wnow > div { display:flex; flex-direction:column; }
+.shabbos .wnow ha-icon { display:none; }
+.shabbos .wtemp { font-size:64px; font-weight:400; }
+.shabbos .wcond { font-size:18px; }
+.shabbos .whilo { flex-direction:row; gap:12px; font-size:22px; margin:0; }
 .shabbos .ticker { display:block; flex:1; min-width:0; overflow:hidden;
-  -webkit-mask-image:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-.track { display:flex; align-items:center; gap:22px; width:max-content; animation:marquee linear infinite; }
-@keyframes marquee { to { transform:translateX(calc(-50% - 11px)); } }
-.ti { display:flex; flex-direction:column; align-items:center; gap:1px; font-size:15px; min-width:44px; }
-.ti small { color:rgba(247,241,230,.6); font-size:13px; } .ti ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
-.ti b { font-weight:600; } .ti i { font-style:normal; color:#8fd3ff; font-size:13px; } .ti em { font-style:normal; font-size:11px; color:#8fd3ff; }
-.tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; letter-spacing:2px; text-transform:uppercase; color:#ffc46b;
-  padding:4px 2px; border-left:1px solid rgba(255,196,107,.35); }
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image:linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
+.track { display:flex; align-items:center; gap:30px; width:max-content; animation:marquee linear infinite; }
+@keyframes marquee { to { transform:translateX(calc(-50% - 15px)); } }
+.ti { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:64px; }
+.ti small { color:rgba(247,241,230,.75); font-size:20px; font-weight:500; } .ti ha-icon { --mdc-icon-size:40px; color:#cfe3ff; }
+.ti b { font-size:30px; font-weight:600; line-height:1.05; } .ti i { font-style:normal; color:#8fd3ff; font-size:22px; }
+.ti em { font-style:normal; font-size:17px; color:#8fd3ff; }
+.tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:15px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#ffc46b;
+  padding:6px 4px; border-left:2px solid rgba(255,196,107,.45); }
 .shabbos .rooms { gap:6px; }
-.shabbos .room { flex:1 1 calc(100% / 4 - 6px); padding:3px 2px; gap:0; border-radius:12px; }
+.shabbos .room { flex:1 1 calc(100% / 4 - 6px); padding:6px 2px; gap:0; border-radius:14px; }
 .shabbos .room ha-icon, .shabbos .room small { display:none; }
-.shabbos .room b { font-size:20px; } .shabbos .room span { font-size:10px; letter-spacing:.3px; }
-.shabbos .mode { font-size:9px; padding:0 5px; }
+.shabbos .room b { font-size:40px; font-weight:600; } .shabbos .room span { font-size:15px; letter-spacing:.3px; color:rgba(247,241,230,.8); }
+.shabbos .mode { font-size:13px; padding:0 6px; }
 
 .tiles { display:grid; gap:16px; grid-template-columns:minmax(0, 1.75fr) minmax(0, 1fr) minmax(0, 1fr); align-items:stretch; }
 .tiles.n1, .tiles.n2 { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
