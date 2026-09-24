@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.4.2";
+const ZDC_VERSION = "0.5.0";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -344,10 +344,7 @@ class ZmanDisplayCard extends HTMLElement {
     this._set("hebrew", this._hebrewHtml(now));
     this._set("alerts", this._alertsHtml());
     const mainChanged = this._set("main", shabbos ? this._shabbosHtml(now) : this._arcHtml(now, zmanim));
-    if (this._set("foot", this._footHtml(now))) {
-      const track = this._el.foot.querySelector(".track");
-      if (track) track.style.animationDelay = `-${((Date.now() / 1000) % Number(track.dataset.dur)).toFixed(2)}s`;
-    }
+    this._set("foot", this._footHtml(now));
     this._fit(mainChanged);
     this._updateLive(now);
   }
@@ -610,26 +607,20 @@ class ZmanDisplayCard extends HTMLElement {
     return `<div class="tiles n${tiles.length}">${tiles.join("")}</div>`;
   }
 
-  // Shabbos-mode forecast: hourly then daily items in one slowly scrolling strip.
+  // Shabbos-mode forecast: two fixed rows (hourly on top, daily below), all visible at once.
   _tickerHtml(hours, days, icon) {
     if (!hours.length && !days.length) return "";
-    const items =
-      (hours.length ? `<span class="tlabel">Hourly</span>` : "") +
-      hours
-        .map((f) => {
-          const d = new Date(f.datetime);
-          return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${f.precipitation_probability ? `<em>${f.precipitation_probability}%</em>` : ""}</span>`;
-        })
-        .join("") +
-      (days.length ? `<span class="tlabel">7 days</span>` : "") +
-      days
-        .map((f, i) => {
-          const d = new Date(f.datetime);
-          return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b><i>${Math.round(f.templow ?? f.temperature)}°</i>${f.precipitation_probability ? `<em>${f.precipitation_probability}%</em>` : ""}</span>`;
-        })
-        .join("");
-    const dur = Math.max(20, (hours.length + days.length) * 3);
-    return `<div class="ticker"><div class="track" data-dur="${dur}" style="animation-duration:${dur}s">${items}${items}</div></div>`;
+    const row = (label, items) =>
+      items.length ? `<div class="frow"><span class="tlabel">${label}</span><div class="fitems" style="--n:${items.length}">${items.join("")}</div></div>` : "";
+    const hourItems = hours.map((f) => {
+      const d = new Date(f.datetime);
+      return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b><em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></span>`;
+    });
+    const dayItems = days.map((f, i) => {
+      const d = new Date(f.datetime);
+      return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°<i>${Math.round(f.templow ?? f.temperature)}°</i></b><em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></span>`;
+    });
+    return `<div class="ticker">${row("Hourly", hourItems)}${row("7 days", dayItems)}</div>`;
   }
 
   // Per-second updates that must not re-create DOM (keeps animations smooth).
@@ -785,16 +776,16 @@ main > * { flex:none; }
 .shabbos .wtemp { font-size:64px; font-weight:400; }
 .shabbos .wcond { font-size:18px; }
 .shabbos .whilo { flex-direction:row; gap:12px; font-size:22px; margin:0; }
-.shabbos .ticker { display:block; flex:1; min-width:0; overflow:hidden;
-  -webkit-mask-image:linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image:linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
-.track { display:flex; align-items:center; gap:30px; width:max-content; animation:marquee linear infinite; }
-@keyframes marquee { to { transform:translateX(calc(-50% - 15px)); } }
-.ti { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:64px; }
-.ti small { color:rgba(247,241,230,.75); font-size:20px; font-weight:500; } .ti ha-icon { --mdc-icon-size:40px; color:#cfe3ff; }
-.ti b { font-size:30px; font-weight:600; line-height:1.05; } .ti i { font-style:normal; color:#8fd3ff; font-size:22px; }
-.ti em { font-style:normal; font-size:17px; color:#8fd3ff; }
-.tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:15px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#ffc46b;
-  padding:6px 4px; border-left:2px solid rgba(255,196,107,.45); }
+.shabbos .ticker { display:flex; flex-direction:column; gap:6px; flex:1; min-width:0; }
+.frow { display:flex; align-items:stretch; gap:8px; }
+.frow + .frow { padding-top:6px; border-top:1px solid rgba(255,255,255,.08); }
+.fitems { flex:1; display:grid; grid-template-columns:repeat(var(--n), minmax(0, 1fr)); gap:2px; }
+.ti { display:flex; flex-direction:column; align-items:center; gap:0; line-height:1.1; }
+.ti small { color:rgba(247,241,230,.75); font-size:16px; font-weight:500; } .ti ha-icon { --mdc-icon-size:30px; color:#cfe3ff; }
+.ti b { font-size:23px; font-weight:600; white-space:nowrap; } .ti i { font-style:normal; color:#8fd3ff; font-size:17px; margin-left:4px; }
+.ti em { font-style:normal; font-size:13px; color:#8fd3ff; min-height:14px; }
+.tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#ffc46b;
+  text-align:center; padding:2px 3px; border-left:2px solid rgba(255,196,107,.45); }
 .shabbos .rooms { gap:6px; }
 .shabbos .room { flex:1 1 calc(100% / 4 - 6px); padding:6px 2px; gap:0; border-radius:14px; }
 .shabbos .room ha-icon, .shabbos .room small { display:none; }
