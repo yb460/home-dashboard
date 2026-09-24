@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.5.0";
+const ZDC_VERSION = "0.5.1";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -94,6 +94,10 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const pad = (n) => String(n).padStart(2, "0");
+
+// Chance of rain and humidity for one forecast entry, always shown (dash when unknown).
+const pct = (v) => (v == null || isNaN(v) ? "–" : `${Math.round(v)}%`);
+const rainHum = (f) => `<em class="rain">☂ ${pct(f.precipitation_probability)}</em><em class="hum">💧${pct(f.humidity)}</em>`;
 
 const fmtTime = (d) => (d ? `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}` : "--:--");
 
@@ -546,7 +550,7 @@ class ZmanDisplayCard extends HTMLElement {
         ${hours.length ? `<div class="hours">${hours
           .map((f) => {
             const d = new Date(f.datetime);
-            return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b><em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></div>`;
+            return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${rainHum(f)}</div>`;
           })
           .join("")}</div>` : ""}
         ${days.length ? `<div class="days">${days
@@ -557,7 +561,7 @@ class ZmanDisplayCard extends HTMLElement {
               <span class="dhi">${Math.round(f.temperature)}°</span>
               <span class="bar"></span>
               <span class="dlo">${Math.round(low)}°</span>
-              <em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></div>`;
+              ${rainHum(f)}</div>`;
           })
           .join("")}</div>` : ""}
         ${this._tickerHtml(hours, days, icon)}
@@ -614,11 +618,11 @@ class ZmanDisplayCard extends HTMLElement {
       items.length ? `<div class="frow"><span class="tlabel">${label}</span><div class="fitems" style="--n:${items.length}">${items.join("")}</div></div>` : "";
     const hourItems = hours.map((f) => {
       const d = new Date(f.datetime);
-      return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b><em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></span>`;
+      return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${rainHum(f)}</span>`;
     });
     const dayItems = days.map((f, i) => {
       const d = new Date(f.datetime);
-      return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°<i>${Math.round(f.templow ?? f.temperature)}°</i></b><em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></span>`;
+      return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°<i>${Math.round(f.templow ?? f.temperature)}°</i></b>${rainHum(f)}</span>`;
     });
     return `<div class="ticker">${row("Hourly", hourItems)}${row("7 days", dayItems)}</div>`;
   }
@@ -783,7 +787,7 @@ main > * { flex:none; }
 .ti { display:flex; flex-direction:column; align-items:center; gap:0; line-height:1.1; }
 .ti small { color:rgba(247,241,230,.75); font-size:16px; font-weight:500; } .ti ha-icon { --mdc-icon-size:30px; color:#cfe3ff; }
 .ti b { font-size:23px; font-weight:600; white-space:nowrap; } .ti i { font-style:normal; color:#8fd3ff; font-size:17px; margin-left:4px; }
-.ti em { font-style:normal; font-size:13px; color:#8fd3ff; min-height:14px; }
+.ti em { font-style:normal; font-size:15px; line-height:1.15; white-space:nowrap; }
 .tlabel { writing-mode:vertical-rl; transform:rotate(180deg); font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#ffc46b;
   text-align:center; padding:2px 3px; border-left:2px solid rgba(255,196,107,.45); }
 .shabbos .rooms { gap:6px; }
@@ -807,13 +811,14 @@ main > * { flex:none; }
 .wcond { text-transform:capitalize; color:rgba(247,241,230,.7); font-size:17px; }
 .hours { display:grid; grid-template-columns:repeat(auto-fit, minmax(42px, 1fr)); margin-top:12px; gap:2px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.08); }
 .hr { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; }
-.hr small { color:rgba(247,241,230,.6); } .hr ha-icon { --mdc-icon-size:24px; color:#cfe3ff; } .hr em { font-style:normal; font-size:11px; color:#8fd3ff; min-height:13px; }
+.hr small { color:rgba(247,241,230,.6); } .hr ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
+.hr em, .dy em { font-style:normal; font-size:13px; line-height:1.2; white-space:nowrap; }
 .days { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; margin-top:10px; }
 .dy { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:16px; }
 .dy .dn { color:rgba(247,241,230,.75); font-weight:500; } .dy ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
 .dlo { color:#8fd3ff; } .dhi { color:#fff; font-weight:600; }
 .bar { width:6px; height:34px; border-radius:3px; background:linear-gradient(0deg, #6fc3ff, #ffd27a, #ff9a5a); opacity:.85; }
-.dy em { font-style:normal; font-size:11px; color:#8fd3ff; min-height:13px; }
+em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .rooms { display:flex; flex-wrap:wrap; gap:10px; align-content:stretch; }
 .room { box-sizing:border-box; flex:1 1 calc(100% / var(--cols, 4) - 10px); min-width:60px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:10px 4px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid transparent; }
 .room span { font-size:14px; text-transform:uppercase; letter-spacing:1px; color:rgba(247,241,230,.6); }
