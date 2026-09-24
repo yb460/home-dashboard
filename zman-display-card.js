@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.1.0";
+const ZDC_VERSION = "0.2.0";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -19,6 +19,7 @@ const ZDC_DEFAULTS = {
   daf_yomi: "sensor.yidcal_daf_hayomi",
   holiday: "sensor.yidcal_holiday",
   parsha: "sensor.yidcal_parsha",
+  parsha_fallback: "sensor.jewish_calendar_parshat_hashavua",
   upcoming_holiday: "sensor.yidcal_upcoming_holiday",
   upcoming_yomtov: "binary_sensor.yidcal_upcoming_yomtov",
   rosh_chodesh: "binary_sensor.yidcal_rosh_chodesh",
@@ -43,6 +44,8 @@ const ZDC_DEFAULTS = {
   ],
   rooms: [],
   events: [],
+  forecast_hours: 12,
+  forecast_days: 7,
   alerts: [],
 };
 
@@ -67,6 +70,8 @@ const ZDC_WEATHER_ICONS = {
 };
 
 const ZDC_BAD = new Set(["", "unknown", "unavailable", "none", "None"]);
+
+const ZDC_SHORT_DAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש״ק"];
 
 // Arc geometry: a half-ellipse (centre 500,300, radii 440 x 240) from t=0 (left) to t=1 (right).
 const arcPoint = (t) => {
@@ -150,22 +155,22 @@ class ZmanDisplayCard extends HTMLElement {
   disconnectedCallback() {
     clearInterval(this._timer);
     this._timer = null;
-    if (this._unsubFc) {
-      this._unsubFc.then((unsub) => unsub()).catch(() => {});
-      this._unsubFc = null;
-    }
+    for (const p of this._unsubFc || []) p.then((unsub) => unsub && unsub()).catch(() => {});
+    this._unsubFc = null;
   }
 
   _subscribeForecast() {
     const ent = this._config?.weather;
     const conn = this._hass?.connection;
     if (!ent || !conn || this._unsubFc) return;
-    this._unsubFc = conn
-      .subscribeMessage((msg) => {
-        this._hourly = msg.forecast || [];
-        this._dirty = true;
-      }, { type: "weather/subscribe_forecast", entity_id: ent, forecast_type: "hourly" })
-      .catch(() => null);
+    const sub = (type, key) =>
+      conn
+        .subscribeMessage((msg) => {
+          this[key] = msg.forecast || [];
+          this._dirty = true;
+        }, { type: "weather/subscribe_forecast", entity_id: ent, forecast_type: type })
+        .catch(() => null);
+    this._unsubFc = [sub("hourly", "_hourly"), sub("daily", "_daily")];
   }
 
   // ---------------------------------------------------------------- helpers
@@ -231,9 +236,9 @@ class ZmanDisplayCard extends HTMLElement {
               <div class="hm"><span id="hm">--:--</span><span class="ss" id="ss">00</span></div>
               <div class="gdate" id="gdate"></div>
             </div>
+            <div class="alertwrap" id="alerts"></div>
             <div class="hebrew" id="hebrew"></div>
           </header>
-          <div id="alerts"></div>
           <main id="main"></main>
           <footer id="foot"></footer>
         </div>
@@ -302,9 +307,7 @@ class ZmanDisplayCard extends HTMLElement {
     const c = this._config;
     const pills = [];
     const holiday = this._val(c.holiday);
-    const parsha = this._val(c.parsha);
     if (holiday) pills.push(["✨", holiday, "gold"]);
-    if (parsha) pills.push(["📜", `פרשת ${parsha}`, "violet"]);
     if (this._on(c.rosh_chodesh)) pills.push(["🌒", "ראש חודש", "sky"]);
     if (this._on(c.shabbos_mevorchim)) pills.push(["🌙", "שבת מברכים", "sky"]);
     if (this._on(c.kiddush_levana)) pills.push(["🌕", "קידוש לבנה", "moon"]);
@@ -313,8 +316,23 @@ class ZmanDisplayCard extends HTMLElement {
     const daf = this._val(c.daf_yomi);
     return `
       <div class="hdate">${esc(this._val(c.hebrew_date))}</div>
+      ${this._shabbosName() ? `<div class="hparsha">${esc(this._shabbosName())}</div>` : ""}
       <div class="hday">${ZDC_HEB_DAYS[now.getDay()]}${daf ? ` <span class="dot">•</span> דף היומי <b>${esc(daf)}</b>` : ""}</div>
       ${pills.length ? `<div class="pills">${pills.map(([i, t, k]) => `<span class="pill ${k}">${i} ${esc(t)}</span>`).join("")}</div>` : ""}`;
+  }
+
+  // "פרשת …" when there is one; otherwise the Yom Tov that falls on this Shabbos.
+  _shabbosName() {
+    const c = this._config;
+    const parsha = this._val(c.parsha) || this._val(c.parsha_fallback);
+    if (parsha) return `פרשת ${parsha}`;
+    if (!this._on(c.upcoming_yomtov) && !this._val(c.holiday)) return "";
+    const yt = this._val(c.holiday) || this._val(c.upcoming_holiday);
+    const name = yt
+      .split(",")
+      .map((x) => x.replace(/\(.*?\)/g, "").trim())
+      .find((x) => x && !x.startsWith("ערב"));
+    return name ? `שבת ${name}` : "";
   }
 
   _alertsHtml() {
@@ -455,17 +473,35 @@ class ZmanDisplayCard extends HTMLElement {
     const w = this._state(c.weather);
     if (w) {
       const a = w.attributes || {};
-      const hours = (this._hourly || []).filter((f) => new Date(f.datetime) > now).slice(0, 6);
+      const icon = (cond) => ZDC_WEATHER_ICONS[cond] || "mdi:weather-cloudy";
+      const hours = (this._hourly || []).filter((f) => new Date(f.datetime) > now).slice(0, c.forecast_hours);
+      const days = (this._daily || []).slice(0, c.forecast_days);
+      const today = days[0];
+      const lo = Math.min(...days.map((d) => d.templow ?? d.temperature));
+      const hi = Math.max(...days.map((d) => d.temperature));
+      const span = Math.max(1, hi - lo);
       tiles.push(`<div class="tile weather">
         <div class="wnow">
-          <ha-icon icon="${ZDC_WEATHER_ICONS[w.state] || "mdi:weather-cloudy"}"></ha-icon>
+          <ha-icon icon="${icon(w.state)}"></ha-icon>
           <div><div class="wtemp">${a.temperature != null ? Math.round(a.temperature) : "--"}°</div>
           <div class="wcond">${esc(String(w.state).replace("partlycloudy", "partly cloudy").replace(/-/g, " "))}${a.humidity != null ? ` · 💧${Math.round(a.humidity)}%` : ""}</div></div>
+          ${today ? `<div class="whilo"><span>▲ ${Math.round(today.temperature)}°</span><span>▼ ${Math.round(today.templow ?? today.temperature)}°</span></div>` : ""}
         </div>
         ${hours.length ? `<div class="hours">${hours
           .map((f) => {
             const d = new Date(f.datetime);
-            return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${ZDC_WEATHER_ICONS[f.condition] || "mdi:weather-cloudy"}"></ha-icon><b>${Math.round(f.temperature)}°</b>${f.precipitation_probability ? `<em>${f.precipitation_probability}%</em>` : ""}</div>`;
+            return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b><em>${f.precipitation_probability ? f.precipitation_probability + "%" : ""}</em></div>`;
+          })
+          .join("")}</div>` : ""}
+        ${days.length ? `<div class="days">${days
+          .map((f, i) => {
+            const d = new Date(f.datetime);
+            const low = f.templow ?? f.temperature;
+            return `<div class="dy"><span class="dn">${i === 0 ? "היום" : ZDC_SHORT_DAYS[d.getDay()]}</span><ha-icon icon="${icon(f.condition)}"></ha-icon>
+              <span class="dhi">${Math.round(f.temperature)}°</span>
+              <span class="bar"><i style="bottom:${(((low - lo) / span) * 100).toFixed(1)}%;top:${(((hi - f.temperature) / span) * 100).toFixed(1)}%"></i></span>
+              <span class="dlo">${Math.round(low)}°</span>
+              <em>${f.precipitation_probability ? "💧" + f.precipitation_probability + "%" : ""}</em></div>`;
           })
           .join("")}</div>` : ""}
       </div>`);
@@ -477,7 +513,18 @@ class ZmanDisplayCard extends HTMLElement {
           const t = parseFloat(this._val(r.entity));
           const h = parseFloat(this._val(r.humidity));
           const cls = isNaN(t) ? "na" : t < 66 ? "cold" : t < 73 ? "ok" : t < 77 ? "warm" : "hot";
-          return `<div class="room ${cls}"><ha-icon icon="${esc(r.icon || "mdi:thermometer")}"></ha-icon><span>${esc(r.name)}</span><b>${isNaN(t) ? "--" : Math.round(t)}°</b>${isNaN(h) ? "" : `<small>${Math.round(h)}%</small>`}</div>`;
+          let mode = "";
+          if (r.climate) {
+            const cl = this._state(r.climate);
+            const st = cl?.state;
+            const modeIcons = { cool: "❄️", heat: "🔥", dry: "💨", fan_only: "🌀", auto: "♻️", heat_cool: "♻️" };
+            mode = !cl || ZDC_BAD.has(st)
+              ? `<em class="mode off">offline</em>`
+              : st === "off"
+                ? `<em class="mode off">off</em>`
+                : `<em class="mode on">${modeIcons[st] || ""} ${cl.attributes?.temperature != null ? Math.round(cl.attributes.temperature) + "°" : esc(st)}</em>`;
+          }
+          return `<div class="room ${cls}"><ha-icon icon="${esc(r.icon || "mdi:thermometer")}"></ha-icon><span>${esc(r.name)}</span><b>${isNaN(t) ? "--" : Math.round(t)}°</b>${isNaN(h) ? "" : `<small>${Math.round(h)}%</small>`}${mode}</div>`;
         })
         .join("")}</div>`);
     }
@@ -490,7 +537,7 @@ class ZmanDisplayCard extends HTMLElement {
       })
       .filter((e) => e.days >= 0)
       .sort((a, b) => a.days - b.days)
-      .slice(0, c.events_max || 4);
+      .slice(0, c.events_max || undefined);
     if (events.length) {
       tiles.push(`<div class="tile events">${events
         .map(
@@ -548,15 +595,16 @@ const ZDC_STYLE = `
 @keyframes shoot { 0%,92% { opacity:0; transform:translate(0,0) rotate(-20deg); } 93% { opacity:1; } 100% { opacity:0; transform:translate(-420px,150px) rotate(-20deg); } }
 .haze { background:radial-gradient(60% 40% at 50% 100%, rgba(255,190,120,.10), transparent 70%); }
 
-.content { position:relative; z-index:1; display:flex; flex-direction:column; gap:18px; padding:clamp(16px, 2.4vw, 36px); min-height:inherit; box-sizing:border-box; }
+.content { position:relative; z-index:1; display:flex; flex-direction:column; gap:12px; padding:clamp(16px, 2.4vw, 36px); min-height:inherit; box-sizing:border-box; }
 header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; }
-.hm { font-weight:300; font-size:clamp(64px, 9vw, 150px); line-height:.9; letter-spacing:-3px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
+.hm { font-weight:300; font-size:clamp(84px, 12.5vw, 220px); line-height:.9; letter-spacing:-3px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
 .ss { font-size:.32em; font-weight:500; letter-spacing:0; margin-left:10px; color:#ffc46b; vertical-align:top; display:inline-block; margin-top:.35em; }
-.gdate { margin-top:10px; font-size:clamp(15px, 1.4vw, 22px); color:rgba(247,241,230,.75); letter-spacing:.5px; }
+.gdate { margin-top:6px; font-size:clamp(16px, 1.6vw, 26px); color:rgba(247,241,230,.75); letter-spacing:.5px; }
 .hebrew { direction:rtl; text-align:right; }
 .hdate { font-family:'Frank Ruhl Libre', serif; font-weight:900; font-size:clamp(34px, 4.4vw, 72px); line-height:1.05;
   background:linear-gradient(180deg, #fff3d6, #ffc46b 60%, #ff9a5a); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 18px rgba(255,170,80,.35)); }
+.hparsha { margin-top:4px; font-family:'Frank Ruhl Libre', serif; font-weight:700; font-size:clamp(24px, 2.6vw, 44px); color:#e6c7ff; text-shadow:0 0 18px rgba(200,150,255,.45); }
 .hday { margin-top:6px; font-size:clamp(16px, 1.5vw, 24px); color:rgba(247,241,230,.8); }
 .hday b { color:#e6c7ff; font-weight:600; } .dot { color:#ffc46b; margin:0 6px; }
 .pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; justify-content:flex-start; }
@@ -568,6 +616,7 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .pill.moon { color:#fff6b0; border-color:rgba(255,245,160,.45); box-shadow:0 0 14px rgba(255,245,160,.2); }
 .pill.mint { color:#b8f5c8; border-color:rgba(150,240,180,.45); }
 
+.alertwrap { flex:1; align-self:center; }
 .alerts { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
 .alert { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:14px; font-size:clamp(14px, 1.2vw, 18px);
   background:rgba(20,16,30,.55); backdrop-filter:blur(10px); border:1px solid; animation:pulse 2.4s ease-in-out infinite; }
@@ -578,7 +627,7 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 
 main { flex:1; display:flex; align-items:center; justify-content:center; min-height:0; }
 .arcwrap { position:relative; width:100%; max-width:1500px; }
-.arc { width:100%; height:auto; display:block; overflow:visible; }
+.arc { width:100%; height:clamp(240px, calc(100vh - 720px), 520px); display:block; overflow:visible; }
 .horizon { stroke:rgba(255,255,255,.18); stroke-width:1.5; }
 .track { fill:none; stroke:rgba(255,255,255,.28); stroke-width:3; stroke-dasharray:2 10; stroke-linecap:round; }
 .prog { fill:none; stroke:url(#zdcProg); stroke-width:6; stroke-linecap:round; filter:drop-shadow(0 0 8px rgba(255,180,90,.7)); }
@@ -633,20 +682,30 @@ main { flex:1; display:flex; align-items:center; justify-content:center; min-hei
 .sname small { color:rgba(255,236,210,.5); font-size:.78em; }
 .srow b { direction:ltr; font-variant-numeric:tabular-nums; color:#fff3e0; font-size:clamp(15px, 1.25vw, 20px); white-space:nowrap; }
 
-.tiles { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+.tiles { display:grid; gap:16px; grid-template-columns:minmax(0, 1.75fr) minmax(0, 1fr) minmax(0, 1fr); align-items:stretch; }
+.tiles.n1, .tiles.n2 { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
 .tile { padding:16px 18px; border-radius:24px; background:rgba(10,10,24,.42); border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(14px) saturate(1.3); box-shadow:0 10px 40px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.08); position:relative; overflow:hidden; }
 .tile::before { content:""; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg, transparent, #ffc46b, transparent);
   background-size:50% 100%; background-repeat:no-repeat; animation:sweep 6s ease-in-out infinite; }
 @keyframes sweep { 0% { background-position:-60% 0; } 100% { background-position:160% 0; } }
 .wnow { display:flex; align-items:center; gap:14px; }
+.whilo { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:clamp(16px, 1.4vw, 22px); }
+.whilo span:first-child { color:#ffb36b; } .whilo span:last-child { color:#8fd3ff; }
 .wnow ha-icon { --mdc-icon-size:64px; color:#ffd27a; filter:drop-shadow(0 0 12px rgba(255,200,110,.5)); }
 .wtemp { font-size:clamp(40px, 3.6vw, 58px); font-weight:300; line-height:1; }
 .wcond { text-transform:capitalize; color:rgba(247,241,230,.7); font-size:clamp(14px, 1.1vw, 17px); }
-.hours { display:flex; justify-content:space-between; margin-top:12px; gap:4px; }
+.hours { display:grid; grid-template-columns:repeat(auto-fit, minmax(42px, 1fr)); margin-top:12px; gap:2px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.08); }
 .hr { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; }
-.hr small { color:rgba(247,241,230,.6); } .hr ha-icon { --mdc-icon-size:24px; color:#cfe3ff; } .hr em { font-style:normal; font-size:11px; color:#8fd3ff; }
-.rooms { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
+.hr small { color:rgba(247,241,230,.6); } .hr ha-icon { --mdc-icon-size:24px; color:#cfe3ff; } .hr em { font-style:normal; font-size:11px; color:#8fd3ff; min-height:13px; }
+.days { display:grid; grid-template-columns:repeat(auto-fit, minmax(48px, 1fr)); gap:4px; margin-top:10px; direction:rtl; }
+.dy { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:clamp(13px, 1vw, 16px); }
+.dy .dn { color:rgba(247,241,230,.75); font-weight:500; } .dy ha-icon { --mdc-icon-size:24px; color:#cfe3ff; }
+.dlo { color:#8fd3ff; } .dhi { color:#fff; font-weight:600; }
+.bar { position:relative; width:6px; height:34px; border-radius:3px; background:rgba(255,255,255,.08); }
+.bar i { position:absolute; left:0; right:0; border-radius:3px; background:linear-gradient(0deg, #6fc3ff, #ffd27a, #ff9a5a); }
+.dy em { font-style:normal; font-size:11px; color:#8fd3ff; min-height:13px; }
+.rooms { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:10px; align-content:start; }
 .room { display:flex; flex-direction:column; align-items:center; padding:8px 4px; border-radius:16px; background:rgba(255,255,255,.04); border:1px solid transparent; }
 .room span { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:rgba(247,241,230,.6); }
 .room b { font-size:clamp(22px, 1.9vw, 30px); font-weight:500; }
@@ -657,16 +716,23 @@ main { flex:1; display:flex; align-items:center; justify-content:center; min-hei
 .room.warm { border-color:rgba(255,190,100,.45); } .room.warm ha-icon { color:#ffc46b; }
 .room.hot { border-color:rgba(255,110,100,.55); } .room.hot ha-icon { color:#ff7b6b; }
 .room.na ha-icon { color:#889; }
-.events { display:flex; flex-direction:column; gap:8px; }
+.mode { font-style:normal; font-size:11px; margin-top:2px; padding:1px 8px; border-radius:999px; }
+.mode.on { background:rgba(120,200,255,.18); color:#8fe9ff; } .mode.off { background:rgba(255,255,255,.06); color:rgba(247,241,230,.45); }
+.events { display:flex; flex-direction:column; gap:6px; }
 .ev { display:flex; align-items:center; gap:14px; }
-.evn { min-width:62px; text-align:center; font-size:30px; font-weight:800; line-height:1; }
+.evn { min-width:62px; text-align:center; font-size:28px; font-weight:800; line-height:1; }
 .evn small { display:block; font-size:10px; letter-spacing:2px; font-weight:500; color:rgba(247,241,230,.55); margin-top:3px; }
 .evt { display:flex; flex-direction:column; } .evt b { font-weight:500; font-size:clamp(14px, 1.15vw, 18px); } .evt small { color:rgba(247,241,230,.55); font-size:12px; }
 .ev.c0 .evn { color:#ff9ec7; text-shadow:0 0 14px rgba(255,150,200,.5); } .ev.c1 .evn { color:#8fe9ff; text-shadow:0 0 14px rgba(140,230,255,.5); }
 .ev.c2 .evn { color:#d9a8ff; text-shadow:0 0 14px rgba(210,160,255,.5); } .ev.c3 .evn { color:#ffd27a; text-shadow:0 0 14px rgba(255,210,120,.5); }
 .empty { opacity:.6; padding:40px; text-align:center; }
 
+@media (max-width: 1250px) {
+  .tiles { grid-template-columns:1fr 1fr; } .tiles .weather { grid-column:1 / -1; }
+}
 @media (max-width: 900px) {
+  .tiles { grid-template-columns:1fr; }
+  .arc { height:auto; }
   header { flex-direction:column; } .hebrew { align-self:stretch; }
   .shab { grid-template-columns:1fr; }
   .nextbox { position:static; transform:none; width:100%; margin-top:8px; }
