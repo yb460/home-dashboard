@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.5.2";
+const ZDC_VERSION = "0.5.3";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -403,6 +403,23 @@ class ZmanDisplayCard extends HTMLElement {
     return name ? `שבת ${name}` : "";
   }
 
+  // Title for the candle-lighting panel, from YidCal (not the shul schedule):
+  // today's holiday, else this week's parsha, else the upcoming Yom Tov.
+  _shabbosTitle() {
+    const c = this._config;
+    const firstName = (list) =>
+      list
+        .split(",")
+        .map((x) => x.replace(/\(.*?\)/g, "").trim())
+        .find((x) => x && !x.startsWith("ערב"));
+    const holiday = firstName(this._val(c.holiday));
+    if (holiday) return holiday;
+    const parsha = this._val(c.parsha) || this._val(c.parsha_fallback);
+    if (parsha) return `שבת פרשת ${parsha}`;
+    const upcoming = this._on(c.upcoming_yomtov) && firstName(this._val(c.upcoming_holiday));
+    return upcoming || "שבת קודש";
+  }
+
   _alertsHtml() {
     const items = (this._config.alerts || []).filter((a) => {
       const st = this._state(a.entity);
@@ -490,8 +507,7 @@ class ZmanDisplayCard extends HTMLElement {
   _shabbosHtml(now) {
     const c = this._config;
     const sched = this._state(c.shul_schedule);
-    let title = sched && !ZDC_BAD.has(sched.state) ? sched.state : this._val(c.holiday);
-    if (!title) title = this._val(c.parsha) ? `שבת פרשת ${this._val(c.parsha)}` : "שבת קודש";
+    const title = this._shabbosTitle();
     const erev = parseTime(this._val(c.candle_lighting), now);
     const motzi = parseTime(this._val(c.havdalah), now);
     const target = erev && erev > now ? ["הדלקת נרות בעוד", erev] : motzi && motzi > now ? ["מוצאי בעוד", motzi] : null;
