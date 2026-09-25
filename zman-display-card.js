@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.0";
+const ZDC_VERSION = "0.9.1";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -551,17 +551,18 @@ class ZmanDisplayCard extends HTMLElement {
 
   // Size the middle section (the Shabbos schedule) to fill the space it has:
   // find the largest zoom (0.4x-1.4x) at which it still fits. Zoom re-flows the
-  // text, so growing it wraps rather than overflowing sideways.
+  // text, so growing it wraps rather than overflowing sideways. "Fits" is judged
+  // by whether anything spills out of <main> (scroll size vs client size), which
+  // browsers report consistently; bounding boxes under nested zoom do not.
   _fitMain() {
     const main = this._el?.main;
     const child = main?.firstElementChild;
     if (!child || child.classList.contains("arcwrap")) return;
-    const box = main.getBoundingClientRect();
     const fits = (z) => {
       child.style.zoom = z;
-      const r = child.getBoundingClientRect();
       const hero = child.querySelector(".shab-hero");
-      return r.height <= box.height + 1 && r.width <= box.width + 1 && (!hero || hero.scrollWidth <= hero.clientWidth + 1);
+      return main.scrollHeight <= main.clientHeight + 1 &&
+        main.scrollWidth <= main.clientWidth + 1 && (!hero || hero.scrollWidth <= hero.clientWidth + 1);
     };
     let lo = 0.4;
     let hi = 1.4;
@@ -1279,6 +1280,13 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .themed .mark text { paint-order:stroke; stroke:rgba(0,0,0,.75); stroke-width:5px; stroke-linejoin:round; }
 .themed .mark.past text { opacity:.7; }
 .shabbos .tmotif { display:none; }
+
+/* The clock and Hebrew date sit on a dark backing on holiday backgrounds, and the
+   Hebrew date is solid (not gradient) and larger in the compact Shabbos header. */
+.themed .clock, .themed .hebrew { background:rgba(6,6,16,.62); border-radius:18px; padding:4px 16px 8px; box-shadow:0 0 24px rgba(0,0,0,.5); }
+.shabbos .hdate { font-size:58px; }
+.shabbos.themed .hdate { background:none; -webkit-background-clip:border-box; background-clip:border-box; color:var(--a1); }
+.shabbos .tedge.schach { opacity:.55; }
 
 .portrait .tiles { grid-template-columns:1fr 1fr; } .portrait .tiles .weather { grid-column:1 / -1; }
 .portrait header { flex-direction:column; } .portrait .hebrew { align-self:stretch; }
