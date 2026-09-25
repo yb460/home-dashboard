@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.4";
+const ZDC_VERSION = "0.9.5";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -565,6 +565,9 @@ class ZmanDisplayCard extends HTMLElement {
     const main = this._el?.main;
     const child = main?.firstElementChild;
     if (!child || child.classList.contains("arcwrap")) return;
+    // Measure top/left-aligned: overflow from a centred box spills up/left too,
+    // and that part never shows up in scrollHeight/scrollWidth.
+    main.style.alignItems = main.style.justifyContent = "flex-start";
     const fits = (z) => {
       child.style.zoom = z;
       const hero = child.querySelector(".shab-hero");
@@ -580,6 +583,7 @@ class ZmanDisplayCard extends HTMLElement {
       else hi = mid;
     }
     child.style.zoom = lo.toFixed(3);
+    main.style.alignItems = main.style.justifyContent = "";
   }
 
   _set(key, html) {
@@ -933,7 +937,7 @@ class ZmanDisplayCard extends HTMLElement {
         <rect x="-32" y="206" width="64" height="16" rx="6" class="holder"/>
       </g>`;
     return `
-      <div class="shab" data-live>
+      <div class="shab${days.length >= 3 ? " many" : ""}" data-live>
         <div class="shab-hero">
           <svg viewBox="0 0 300 230" class="candles">${flame(95)}${flame(205)}</svg>
           <div class="stitle">${esc(title)}</div>
@@ -1223,17 +1227,25 @@ main > * { flex:none; }
 .scd span { color:#ffd9a8; font-size:18px; white-space:nowrap; }
 .scd b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-size:32px; font-weight:700; color:#fff; white-space:nowrap; }
 /* One column per day of the schedule (up to 4 across), sharing the full width. */
-.sched { display:grid; grid-template-columns:repeat(var(--days, 2), minmax(0, 1fr)); gap:14px; align-items:start; }
-.sday { overflow:hidden; border-radius:22px; background:linear-gradient(180deg, rgba(40,24,10,.88), rgba(22,13,6,.88)); border:1px solid rgba(255,190,110,.28);
-  box-shadow:inset 0 1px 0 rgba(255,220,160,.12); }
-.sday h3 { margin:0; padding:10px 18px 8px; font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:28px; color:var(--a2);
-  background:linear-gradient(90deg, rgba(255,190,110,.16), rgba(255,190,110,.03)); border-bottom:1px solid rgba(255,190,110,.28); }
-.srow { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; column-gap:14px; padding:8px 18px; }
-.srow + .srow { border-top:1px solid rgba(255,255,255,.07); }
-.sname { font-size:19px; font-weight:600; color:#fbeedd; }
-.stime { font-family:'Outfit', 'Rubik', sans-serif; font-weight:700; font-variant-numeric:tabular-nums; color:#ffe2b3; font-size:21px; white-space:nowrap; unicode-bidi:plaintext; }
-.snotes { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:3px; font-size:15px; color:rgba(255,236,210,.62); }
-.snotes span + span::before { content:"•"; color:var(--a2); opacity:.7; margin-inline-end:14px; }
+/* Tight, high-contrast cards: solid backgrounds (nothing shows through), little padding,
+   so the schedule can be drawn larger and stays crisp even with 3-4 days. */
+.sched { display:grid; grid-template-columns:repeat(var(--days, 2), minmax(0, 1fr)); gap:8px; align-items:start; }
+.sday { overflow:hidden; border-radius:16px; background:#170e06; border:1.5px solid rgba(255,190,110,.5); }
+.sday h3 { margin:0; padding:5px 12px 4px; font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:25px; color:var(--a2);
+  background:rgba(255,190,110,.14); border-bottom:1.5px solid rgba(255,190,110,.45); }
+.srow { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; column-gap:10px; padding:4px 12px; }
+.srow + .srow { border-top:1px solid rgba(255,255,255,.12); }
+.sname { font-size:20px; font-weight:700; color:#fff; line-height:1.2; }
+.stime { font-family:'Outfit', 'Rubik', sans-serif; font-weight:700; font-variant-numeric:tabular-nums; color:#ffd27a; font-size:22px; white-space:nowrap; unicode-bidi:plaintext; }
+.snotes { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:0 10px; font-size:16px; line-height:1.25; color:#e9d9c2; }
+.snotes span + span::before { content:"•"; color:var(--a2); margin-inline-end:10px; }
+.shab.many { grid-template-columns:minmax(220px, .48fr) 2.6fr; gap:14px; }
+.shab.many .candles { width:min(120px, 45%); }
+.shab.many .stitle { font-size:60px; }
+/* Narrow side panel: candle lighting and motzei side by side, shkia as a slim row under them. */
+.shab.many .stimes { grid-auto-flow:row; grid-template-columns:1fr 1fr; }
+.shab.many .st.sk { order:1; grid-column:1 / -1; flex-direction:row; justify-content:center; align-items:baseline; gap:8px; padding:4px 8px; }
+.shab.many .st.sk small { white-space:nowrap; } .shab.many .st span { font-size:17px; } .shab.many .st b { font-size:44px; }
 /* Shabbos: compact header, the schedule in the middle, and a large bottom row
    with weather (scrolling hourly + 7-day strip) and room temperatures. */
 .ticker { display:none; }
