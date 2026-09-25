@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.7.2";
+const ZDC_VERSION = "0.7.3";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -226,9 +226,9 @@ function zdcThemeHtml(theme, day) {
     }
     const pole = (y) => `<b class="pole" style="top:${y}%"></b>`;
     let hangs = "";
-    for (let i = 0; i < 6; i++) {
-      const item = ["pom", "grapes", "esrog", "pom", "grapes", "esrog"][i];
-      hangs += `<b class="hang" style="left:${[31, 36, 41, 59, 63.5, 68][i] + rnd() * 3}%;--len:${(5 + rnd() * 6).toFixed(1)}%;animation-delay:-${(rnd() * 6).toFixed(1)}s">${svg(item, "#6b2f7a")}</b>`;
+    for (let i = 0; i < 4; i++) {
+      const item = ["pom", "grapes", "grapes", "pom"][i];
+      hangs += `<b class="hang" style="left:${[37, 40.5, 59.5, 63][i] + rnd() * 1.5}%;--len:${(4 + rnd() * 5).toFixed(1)}%;animation-delay:-${(rnd() * 6).toFixed(1)}s">${svg(item, "#6b2f7a")}</b>`;
     }
     html += `<div class="tedge schach">${pole(1)}${fronds}${pole(4.5)}${hangs}</div>`;
   } else if (theme.edge === "garland") {
@@ -255,7 +255,8 @@ function zdcThemeHtml(theme, day) {
       const size = (22 + rnd() * 34).toFixed(0);
       const dur = (f.move === "drift" ? 7 + rnd() * 8 : f.move === "rise" ? 14 + rnd() * 14 : 12 + rnd() * 12).toFixed(1);
       const y = f.move === "drift" ? `top:${(8 + rnd() * 84).toFixed(1)}%;` : "";
-      fl += `<i class="fl ${f.move}" style="left:${(rnd() * 98).toFixed(1)}%;${y}width:${size}px;height:${size}px;--r:${(rnd() * 720 - 360).toFixed(0)}deg;--x:${(rnd() * 120 - 60).toFixed(0)}px;--o:${(0.45 + rnd() * 0.45).toFixed(2)};animation-duration:${dur}s;animation-delay:-${(rnd() * dur).toFixed(1)}s">${svg(pick(f.items), pick(f.colors))}</i>`;
+      const side = rnd() < 0.5 ? rnd() * 12 : 86 + rnd() * 12;
+      fl += `<i class="fl ${f.move}" style="left:${side.toFixed(1)}%;${y}width:${size}px;height:${size}px;--r:${(rnd() * 720 - 360).toFixed(0)}deg;--x:${(rnd() * 120 - 60).toFixed(0)}px;--o:${(0.3 + rnd() * 0.3).toFixed(2)};animation-duration:${dur}s;animation-delay:-${(rnd() * dur).toFixed(1)}s">${svg(pick(f.items), pick(f.colors))}</i>`;
     }
     html += `<div class="floats">${fl}</div>`;
   }
@@ -1172,6 +1173,18 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 @keyframes zrise { 0% { transform:translate(0, 0) scale(1); opacity:0; } 10% { opacity:var(--o); } 100% { transform:translate(var(--x), calc(var(--H, 1300px) * -1.12)) scale(.5); opacity:0; } }
 @keyframes zdrift { from { transform:translate(0, 0) rotate(-8deg); } to { transform:translate(var(--x), -40px) rotate(8deg); } }
 .theme-lagbaomer .fl svg { filter:drop-shadow(0 0 6px #ff9a3d); } .theme-yomkippur .fl svg { filter:drop-shadow(0 0 8px #fff); }
+
+/* Legibility on holiday backgrounds: shade the background behind the header text
+   and give all text a dark outline so decorations never fight with the words. */
+.theme::after { content:""; position:absolute; inset:0;
+  background:radial-gradient(34% 30% at 14% 9%, rgba(0,0,0,.55), transparent 72%),
+    radial-gradient(34% 30% at 86% 9%, rgba(0,0,0,.55), transparent 72%),
+    radial-gradient(60% 22% at 50% 62%, rgba(0,0,0,.35), transparent 75%); }
+.themed .hm, .themed .gdate, .themed .hday, .themed .hparsha, .themed .nextbox, .themed .pill { text-shadow:0 2px 4px rgba(0,0,0,.9), 0 0 16px rgba(0,0,0,.65); }
+.themed .hdate, .themed .stitle { filter:drop-shadow(0 2px 3px rgba(0,0,0,.9)) drop-shadow(0 0 14px rgba(0,0,0,.6)); }
+.themed .mark text { paint-order:stroke; stroke:rgba(0,0,0,.75); stroke-width:5px; stroke-linejoin:round; }
+.themed .mark.past text { opacity:.7; }
+.shabbos .tmotif { display:none; }
 
 .portrait .tiles { grid-template-columns:1fr 1fr; } .portrait .tiles .weather { grid-column:1 / -1; }
 .portrait header { flex-direction:column; } .portrait .hebrew { align-self:stretch; }
