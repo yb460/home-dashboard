@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.7.1";
+const ZDC_VERSION = "0.7.2";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -94,6 +94,7 @@ const ZDC_SYM = {
   ember: `<circle cx="20" cy="20" r="7" fill="currentColor"/><circle cx="20" cy="20" r="3" fill="#fff6c8"/>`,
   grapes: `<path d="M20 6c2-3 5-4 8-3" stroke="#6b8e23" stroke-width="2" fill="none"/><g fill="currentColor"><circle cx="15" cy="12" r="5"/><circle cx="25" cy="12" r="5"/><circle cx="20" cy="20" r="5"/><circle cx="11" cy="20" r="5"/><circle cx="29" cy="20" r="5"/><circle cx="15" cy="28" r="5"/><circle cx="25" cy="28" r="5"/><circle cx="20" cy="35" r="4"/></g>`,
   mote: `<circle cx="20" cy="20" r="9" fill="currentColor" opacity=".35"/><circle cx="20" cy="20" r="4" fill="currentColor"/>`,
+  frond: `<path d="M2 38 Q20 22 38 2" stroke="currentColor" stroke-width="2" fill="none"/>${[6, 11, 16, 21, 26, 31].map((t) => `<path d="M${t} ${40 - t * 1.05} l-6 -9 M${t} ${40 - t * 1.05} l9 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`).join("")}`,
   bow: `<path d="M12 3c15 8 15 26 0 34" fill="none" stroke="#c28a4a" stroke-width="3"/><path d="M12 3v34" stroke="#eee" stroke-width="1"/><path d="M6 20h28M29 15l5 5-5 5" stroke="#ddd" stroke-width="2" fill="none"/>`,
 };
 
@@ -140,6 +141,32 @@ const ZDC_MOTIF = {
       <ellipse cx="${end.x.toFixed(1)}" cy="${end.y.toFixed(1)}" rx="${end.w.toFixed(1)}" ry="9" transform="rotate(${ang.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)})" fill="#5a3712" stroke="#f3d08a" stroke-width="3"/>
       <rect x="10" y="${(at(0).y - 6).toFixed(1)}" width="10" height="12" rx="3" fill="#d8a758"/></svg>`;
   },
+  // Lulav (palm, aravos on the left, hadassim on the right, in a woven holder) and an esrog.
+  lulav: () => {
+    const hadas = [];
+    for (let y = 196; y >= 86; y -= 14)
+      for (const [dx, rot] of [[-7, -35], [7, 35], [0, 0]])
+        hadas.push(`<ellipse cx="${146 + dx}" cy="${y - (dx ? 0 : 6)}" rx="4" ry="8" transform="rotate(${rot} ${146 + dx} ${y})" fill="#2f6b34"/>`);
+    const aravos = [[-10, 60], [-4, 48], [3, 66]]
+      .map(([rot, top]) => `<path d="M96 200 Q ${92 + rot / 2} ${(200 + top) / 2} ${94 + rot} ${top} Q ${100 + rot / 2} ${(200 + top) / 2} 98 200 Z" fill="#8db45e" transform="rotate(${rot} 96 200)"/>`)
+      .join("");
+    const leaflets = [60, 90, 120, 150, 180].map((y) => `<path d="M112 ${y} l-5 -14 M120 ${y} l5 -14" stroke="#4f7a2c" stroke-width="1.5"/>`).join("");
+    return `<svg viewBox="0 0 260 300" class="motif lulav"><defs>
+        <linearGradient id="zdcPalm" x1="0" x2="1"><stop offset="0" stop-color="#557f2e"/><stop offset=".5" stop-color="#8fb857"/><stop offset="1" stop-color="#557f2e"/></linearGradient>
+        <radialGradient id="zdcEsrog" cx=".38" cy=".35"><stop offset="0" stop-color="#fff6a8"/><stop offset=".55" stop-color="#f2cf2a"/><stop offset="1" stop-color="#c79a12"/></radialGradient></defs>
+      <path d="M108 292 L108 40 Q116 -6 124 40 L124 292 Z" fill="url(#zdcPalm)"/>${leaflets}
+      <path d="M116 292 V20" stroke="#3f6423" stroke-width="1.5"/>
+      ${aravos}<path d="M96 290 V120" stroke="#9c4a3a" stroke-width="2.5"/>
+      <path d="M146 290 V80" stroke="#6d4a2a" stroke-width="2.5"/>${hadas.join("")}
+      <rect x="86" y="206" width="72" height="42" rx="8" fill="#c9a25a"/>
+      <path d="M90 214 h64 M90 227 h64 M90 240 h64" stroke="#8f6c2c" stroke-width="2"/>
+      <path d="M98 206 l10 42 M114 206 l10 42 M130 206 l10 42 M146 206 l8 34" stroke="#e2c27a" stroke-width="2" opacity=".7"/>
+      <g transform="rotate(-18 208 238)">
+        <ellipse cx="208" cy="238" rx="34" ry="44" fill="url(#zdcEsrog)"/>
+        ${[[196, 222], [214, 212], [222, 238], [200, 250], [216, 262], [188, 238]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.8" fill="#b88d10" opacity=".6"/>`).join("")}
+        <path d="M208 194 v-8" stroke="#6b4a1f" stroke-width="4" stroke-linecap="round"/>
+        <path d="M208 282 q10 12 22 8 q-8 -10 -22 -8z" fill="#5d8a35"/></g></svg>`;
+  },
   torah: () => `<svg viewBox="0 0 300 200" class="motif torah">
       <rect x="40" y="18" width="30" height="170" rx="12" fill="#7a4a24"/><rect x="230" y="18" width="30" height="170" rx="12" fill="#7a4a24"/>
       <circle cx="55" cy="14" r="12" fill="#e2bf55"/><circle cx="245" cy="14" r="12" fill="#e2bf55"/>
@@ -159,7 +186,7 @@ const ZDC_THEMES = [
   { key: "yomkippur", on: ["ערב יום כיפור", "יום הכיפורים"], acc: ["#ffffff", "#dfe9ff", "#a9c1ff"], float: { items: ["mote"], colors: ["#ffffff", "#e6eeff"], n: 26, move: "rise" } },
   { key: "roshhashana", on: ["ערב ראש השנה", "ראש השנה א׳", "ראש השנה ב׳", "ראש השנה א׳ וב׳"], acc: ["#fff4d8", "#ffd166", "#e8a33d"], motif: "shofar", float: { items: ["apple", "drop", "pom"], colors: ["#f4b41a"], n: 16, move: "drift" } },
   { key: "simchastorah", on: ["שמיני עצרת", "שמחת תורה", "שמיני עצרת/שמחת תורה"], acc: ["#ffffff", "#ffd54f", "#ff8a65"], motif: "torah", float: { items: ["flag", "confetti", "confetti", "star"], colors: ["#4fc3f7", "#ffd54f", "#ef5350", "#66bb6a", "#ba68c8", "#ffffff"], n: 30, move: "fall" } },
-  { key: "sukkos", on: ["ערב סוכות", "סוכות (כל חג)", "סוכות א׳", "סוכות ב׳", "חול המועד סוכות", "שבת חול המועד סוכות", "הושענא רבה"], acc: ["#fbffe0", "#e6d36a", "#9ccc65"], edge: "schach", float: { items: ["esrog", "leaf", "leaf"], colors: ["#5aa04a", "#7cb342", "#c0a44a"], n: 12, move: "drift" } },
+  { key: "sukkos", on: ["ערב סוכות", "סוכות (כל חג)", "סוכות א׳", "סוכות ב׳", "חול המועד סוכות", "שבת חול המועד סוכות", "הושענא רבה"], acc: ["#fff6dc", "#f2c14e", "#c98f2e"], motif: "lulav", edge: "schach", float: { items: ["leaf"], colors: ["#8a9a4a", "#a88f4e", "#6f8a3e"], n: 7, move: "drift" } },
   { key: "chanukah", on: ["חנוכה", "א׳ דחנוכה", "ב׳ דחנוכה", "ג׳ דחנוכה", "ד׳ דחנוכה", "ה׳ דחנוכה", "ו׳ דחנוכה", "ז׳ דחנוכה", "זאת חנוכה", "שבת חנוכה"], acc: ["#ffffff", "#9ecbff", "#e2bf55"], motif: "menorah", float: { items: ["dreidel", "star", "drop"], colors: ["#5c9dff", "#c9d6ff", "#e2bf55"], n: 18, move: "drift" } },
   { key: "tubishvat", on: ["חמשה עשר בשבט"], acc: ["#f5ffe8", "#b5e07a", "#e59ab8"], float: { items: ["flower", "leaf", "grapes", "leaf"], colors: ["#f8bbd0", "#8bc34a", "#7b3f8c", "#aed581"], n: 22, move: "fall" } },
   { key: "fast", on: ["תענית אסתר", "תענית אסתר מוקדם"], acc: ["#e7ecf5", "#aebbd1", "#7f8ca6"] },
@@ -191,19 +218,19 @@ function zdcThemeHtml(theme, day) {
   const motif = theme.motif && ZDC_MOTIF[theme.motif];
   if (motif) html += `<div class="tmotif">${motif(day)}</div>`;
   if (theme.edge === "schach") {
-    let leaves = "";
-    for (let i = 0; i < 44; i++) {
-      const color = pick(["#3f7d35", "#4c9a3f", "#6aa84f", "#2e6b2a", "#8a9a3a"]);
-      leaves += `<i style="left:${(i / 44) * 102 - 1}%;top:${(-2 + rnd() * 4).toFixed(1)}%;width:${(46 + rnd() * 30).toFixed(0)}px;transform:rotate(${(rnd() * 360).toFixed(0)}deg)">${svg("leaf", color)}</i>`;
+    // Bamboo poles across the top, covered with palm fronds in dried greens and straw.
+    let fronds = "";
+    for (let i = 0; i < 34; i++) {
+      const color = pick(["#5d7a36", "#6f8a3e", "#8a8f45", "#a08c4a", "#4d6b30", "#b39a55"]);
+      fronds += `<i style="left:${((i / 34) * 104 - 2).toFixed(1)}%;top:${(-4 + rnd() * 4).toFixed(1)}%;width:${(50 + rnd() * 34).toFixed(0)}px;transform:rotate(${(rnd() * 70 - 35 + (i % 2 ? 180 : 0)).toFixed(0)}deg)">${svg("frond", color)}</i>`;
     }
+    const pole = (y) => `<b class="pole" style="top:${y}%"></b>`;
     let hangs = "";
-    for (let i = 0; i < 9; i++) {
-      const item = pick(["ornament", "ornament", "esrog", "pom", "grapes"]);
-      const color = pick(["#e0457b", "#ffd166", "#4fc3f7", "#ba68c8", "#ff8a65"]);
-      const ball = item === "ornament" ? `<svg viewBox="0 0 40 40" style="color:${color}"><circle cx="20" cy="23" r="12" fill="currentColor"/><rect x="16" y="7" width="8" height="5" rx="1" fill="#e2bf55"/><path d="M9 21h22" stroke="#fff" stroke-opacity=".5" stroke-width="2"/><circle cx="15" cy="18" r="3" fill="#fff" opacity=".4"/></svg>` : svg(item, "#7b3f8c");
-      hangs += `<b class="hang" style="left:${(4 + i * 11.5 + rnd() * 4).toFixed(1)}%;--len:${(5 + rnd() * 9).toFixed(1)}%;animation-delay:-${(rnd() * 6).toFixed(1)}s">${ball}</b>`;
+    for (let i = 0; i < 6; i++) {
+      const item = ["pom", "grapes", "esrog", "pom", "grapes", "esrog"][i];
+      hangs += `<b class="hang" style="left:${[31, 36, 41, 59, 63.5, 68][i] + rnd() * 3}%;--len:${(5 + rnd() * 6).toFixed(1)}%;animation-delay:-${(rnd() * 6).toFixed(1)}s">${svg(item, "#6b2f7a")}</b>`;
     }
-    html += `<div class="tedge schach">${leaves}${hangs}</div>`;
+    html += `<div class="tedge schach">${pole(1)}${fronds}${pole(4.5)}${hangs}</div>`;
   } else if (theme.edge === "garland") {
     let flowers = "";
     for (let i = 0; i < 40; i++) flowers += `<i style="left:${(i / 40) * 102 - 1}%;top:${(Math.sin(i / 2.2) * 1.2 + rnd()).toFixed(1)}%;width:${(26 + rnd() * 22).toFixed(0)}px">${svg(i % 3 ? "flower" : "leaf", pick(i % 3 ? ["#f8bbd0", "#fff59d", "#ce93d8", "#ffffff"] : ["#66bb6a", "#81c784"]))}</i>`;
@@ -1100,13 +1127,13 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .theme { opacity:0; transition:opacity 4s ease; overflow:hidden; pointer-events:none; }
 .themed .theme { opacity:1; }
 .stage.themed .stars { opacity:0; }
-.stage.theme-chanukah .stars, .stage.theme-lagbaomer .stars, .stage.theme-tubav .stars, .stage.theme-roshhashana .stars, .stage.theme-yomkippur .stars { opacity:.55; }
+.stage.theme-sukkos .stars, .stage.theme-chanukah .stars, .stage.theme-lagbaomer .stars, .stage.theme-tubav .stars, .stage.theme-roshhashana .stars, .stage.theme-yomkippur .stars { opacity:.55; }
 .theme > * { position:absolute; inset:0; }
 .phase-day.themed .tbg { filter:brightness(1.2) saturate(1.1); }
 .theme-roshhashana .tbg { background:radial-gradient(70% 50% at 50% 0%, rgba(255,209,102,.22), transparent 70%), radial-gradient(120% 100% at 50% 110%, #4a1030 0%, #1d0b2a 55%, #0a0514 100%); }
 .theme-yomkippur .tbg { background:conic-gradient(from 150deg at 50% -8%, transparent 0deg, rgba(255,255,255,.07) 8deg, transparent 16deg, rgba(255,255,255,.05) 26deg, transparent 34deg, rgba(255,255,255,.07) 44deg, transparent 52deg, rgba(255,255,255,.05) 60deg, transparent 68deg),
   radial-gradient(80% 60% at 50% 0%, #465888 0%, #1c2548 50%, #0b1024 100%); }
-.theme-sukkos .tbg { background:radial-gradient(90% 60% at 50% 0%, rgba(230,211,106,.22), transparent 65%), linear-gradient(180deg, #1d4a2c 0%, #123420 50%, #0a1f14 100%); }
+.theme-sukkos .tbg { background:radial-gradient(60% 45% at 50% 105%, rgba(242,176,78,.28), transparent 70%), radial-gradient(45% 35% at 50% 30%, rgba(255,214,140,.12), transparent 70%), linear-gradient(180deg, #0f1a33 0%, #1d2440 45%, #33261f 80%, #3b2615 100%); }
 .theme-simchastorah .tbg { background:radial-gradient(60% 50% at 50% 10%, rgba(255,213,79,.28), transparent 70%), linear-gradient(160deg, #1b2a7a 0%, #3a1c6e 50%, #12103a 100%); }
 .theme-chanukah .tbg { background:radial-gradient(60% 45% at 50% 8%, rgba(255,190,90,.22), transparent 70%), radial-gradient(120% 100% at 50% 100%, #173a7a 0%, #0c1d45 55%, #050b1f 100%); }
 .theme-tubishvat .tbg { background:radial-gradient(80% 60% at 30% 0%, rgba(248,187,208,.22), transparent 65%), linear-gradient(180deg, #24503a 0%, #1a3a2c 50%, #0e2119 100%); }
@@ -1123,7 +1150,10 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .menorah .arm { fill:none; stroke:#e2bf55; stroke-width:7; stroke-linecap:round; } .menorah .base { fill:#e2bf55; } .menorah .cand { fill:#dfe7ff; }
 .motif.shofar { width:22%; opacity:.8; } .motif.torah { width:17%; } .motif.luchos { width:22%; opacity:.55; } .motif.fullmoon { width:13%; opacity:.9; filter:drop-shadow(0 0 40px rgba(255,240,200,.5)); }
 .tedge i { position:absolute; display:block; aspect-ratio:1; } .tedge i svg, .fl svg { width:100%; height:100%; display:block; }
-.schach i { opacity:.9; }
+.schach i { opacity:.8; }
+.pole { position:absolute; left:-1%; right:-1%; height:14px; border-radius:7px; background:repeating-linear-gradient(90deg, #c8a45e 0 140px, #8a6a32 140px 146px), #c8a45e; box-shadow:inset 0 -4px 0 rgba(0,0,0,.25), inset 0 3px 0 rgba(255,240,200,.35); }
+.theme-sukkos .tmotif { padding-top:5.5%; }
+.motif.lulav { width:17%; opacity:.95; filter:drop-shadow(0 0 30px rgba(242,193,78,.3)); }
 .hang { position:absolute; top:0; width:2px; height:var(--len); background:linear-gradient(#c8b27a, #8f7a45); transform-origin:top center; animation:swing 6s ease-in-out infinite alternate; }
 .hang svg { position:absolute; top:100%; left:50%; width:44px; height:44px; transform:translateX(-50%); }
 @keyframes swing { from { transform:rotate(-6deg); } to { transform:rotate(6deg); } }
