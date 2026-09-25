@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.3";
+const ZDC_VERSION = "0.9.4";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -655,6 +655,8 @@ class ZmanDisplayCard extends HTMLElement {
           .map((x) => x.replace(/\(.*?\)/g, "").trim())
           .find((x) => x && !x.startsWith("ערב") && x !== holiday)
       : "";
+    const rain = this._rainChip();
+    if (rain) pills.push(rain);
     // Today's holiday and what's coming up share one chip.
     if (holiday) pills.push(["✨", upcoming ? `${holiday} · בקרוב: ${upcoming}` : holiday, "gold"]);
     else if (upcoming) pills.push(["⏳", `בקרוב: ${upcoming}`, "mint"]);
@@ -662,6 +664,28 @@ class ZmanDisplayCard extends HTMLElement {
     if (this._on(c.shabbos_mevorchim)) pills.push(["🌙", "שבת מברכים", "sky"]);
     if (this._on(c.kiddush_levana)) pills.push(["🌕", "קידוש לבנה", "moon"]);
     return pills.map(([i, t, k]) => `<span class="chip pill ${k}">${i} ${esc(t)}</span>`).join("");
+  }
+
+  // Sukkos: rain now, or a high chance of it in the next few hours -> close the schach cover.
+  _rainChip() {
+    const c = this._config;
+    const k = c.sukkah || {};
+    const sukkos = this._theme()?.theme.key === "sukkos" || [k.lights_automation, k.heaters_automation].some((a) => a && this._on(a));
+    if (!sukkos || k.rain_alert === false) return null;
+    const now = new Date();
+    const say = k.rain_text || "פארמאכן די שלאק!";
+    if (["rainy", "pouring", "lightning-rainy", "hail", "snowy-rainy", "snowy"].includes(this._state(c.weather)?.state))
+      return ["☔", `${say} · עס רעגנט`, "rain"];
+    const min = Number(k.rain_chance ?? 50);
+    const hrs = Number(k.rain_hours ?? 3);
+    const f = (this._hourly || []).find((x) => {
+      const t = new Date(x.datetime);
+      return t > now - 3600000 && t < now.getTime() + hrs * 3600000 && Number(x.precipitation_probability) >= min;
+    });
+    if (!f) return null;
+    const t = new Date(f.datetime);
+    const when = t <= now ? "יעצט" : `אום ${fmtTime(t)}`;
+    return ["☔", `${say} · ${Math.round(f.precipitation_probability)}% רעגן ${when}`, "rain"];
   }
 
   _hebrewHtml(now) {
@@ -785,9 +809,18 @@ class ZmanDisplayCard extends HTMLElement {
       const offDue = ts(k.off_due);
       const rest = ts(k.rest_until);
       let html = "";
-      if (heating) html = `Heaters on · off in ${offDue && offDue > now ? cd(offDue) : "—"} <small>20-min limit</small>`;
+      const onMin = Number(k.on_minutes ?? 20);
+      const restMin = Number(k.rest_minutes ?? 10);
+      if (heating && offDue && offDue > now) {
+        // After this slot: a rest, then the next slot if still inside the window and still cold.
+        const nextOn = new Date(offDue.getTime() + restMin * 60000);
+        const then = next && nextOn < next
+          ? (warm ? `next only if below ${below}°` : `next on ${fmtWhen(nextOn, now)}`)
+          : `window ends ${next ? fmtWhen(next, now) : ""}`;
+        html = `Heaters on until <b>${fmtWhen(offDue, now)}</b> <small>(${cd(offDue)} left) · ${then} · ${onMin} on / ${restMin} rest</small>`;
+      } else if (heating) html = `Heaters on <small>${onMin}-min limit</small>`;
       else if (hs.state === "on" && warm) html = `Heaters waiting <small>${tempWhy}${next ? ` · window ends ${fmtWhen(next, now)}` : ""}</small>`;
-      else if (hs.state === "on" && rest && rest > now) html = `Heaters on in ${cd(rest)} <small>10-min rest</small>`;
+      else if (hs.state === "on" && rest && rest > now) html = `Heaters back on <b>${fmtWhen(rest, now)}</b> <small>(in ${cd(rest)}) · ${restMin}-min rest</small>`;
       else if (hs.state === "on") html = `Heaters starting`;
       else if (next && !isNaN(next)) html = `Heaters next <b>${fmtWhen(next, now)}</b> <small>${warm ? `only if below ${below}° · now ${isNaN(temp) ? "--" : Math.round(temp)}°` : "heat window"}</small>`;
       if (html) out += chip(`sukh${heating ? " hot" : ""}`, "mdi:radiator", html);
@@ -1117,6 +1150,9 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .pill.violet { color:#e6c7ff; border-color:rgba(206,160,255,.45); }
 .pill.sky { color:#a8ecff; border-color:rgba(130,220,255,.45); }
 .pill.moon { color:#fff6b0; border-color:rgba(255,245,160,.45); box-shadow:0 0 14px rgba(255,245,160,.2); }
+.pill.rain { height:auto; min-height:44px; padding:6px 18px; font-size:22px; font-weight:800; color:#fff; background:linear-gradient(90deg, #1560d8, #2b8cff);
+  border:2px solid #cfe6ff; box-shadow:0 0 22px rgba(60,150,255,.6); }
+.shabbos .pill.rain { height:auto; font-size:20px; padding:5px 16px; }
 .pill.mint { color:#b8f5c8; border-color:rgba(150,240,180,.45); }
 
 .alert .cd { font-variant-numeric:tabular-nums; }
