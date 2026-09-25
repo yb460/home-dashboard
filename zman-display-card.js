@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.8.0";
+const ZDC_VERSION = "0.8.1";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -640,12 +640,19 @@ class ZmanDisplayCard extends HTMLElement {
     const c = this._config;
     const pills = [];
     const holiday = this._val(c.holiday);
-    if (holiday) pills.push(["✨", holiday, "gold"]);
+    // Coming up: the next Yom Tov itself (not its Erev), and never today's holiday again.
+    const upcoming = this._on(c.upcoming_yomtov)
+      ? this._val(c.upcoming_holiday)
+          .split(",")
+          .map((x) => x.replace(/\(.*?\)/g, "").trim())
+          .find((x) => x && !x.startsWith("ערב") && x !== holiday)
+      : "";
+    // Today's holiday and what's coming up share one chip.
+    if (holiday) pills.push(["✨", upcoming ? `${holiday} · בקרוב: ${upcoming}` : holiday, "gold"]);
+    else if (upcoming) pills.push(["⏳", `בקרוב: ${upcoming}`, "mint"]);
     if (this._on(c.rosh_chodesh)) pills.push(["🌒", "ראש חודש", "sky"]);
     if (this._on(c.shabbos_mevorchim)) pills.push(["🌙", "שבת מברכים", "sky"]);
     if (this._on(c.kiddush_levana)) pills.push(["🌕", "קידוש לבנה", "moon"]);
-    const upcoming = this._val(c.upcoming_holiday).split(",")[0].trim();
-    if (this._on(c.upcoming_yomtov) && upcoming) pills.push(["⏳", `בקרוב: ${upcoming}`, "mint"]);
     return pills.map(([i, t, k]) => `<span class="chip pill ${k}">${i} ${esc(t)}</span>`).join("");
   }
 
