@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.5.3";
+const ZDC_VERSION = "0.6.0";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -113,6 +113,33 @@ const fmtCountdown = (ms) => {
   const hms = `${pad(Math.floor((s % 86400) / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
   return d ? `${d}d ${hms}` : hms;
 };
+
+// Update `el` to match `html` in place: only changed text and attributes are
+// touched, so icons and animations don't restart (no blinking on sensor updates).
+// Attributes of elements marked data-live are left alone; the per-second updater owns them.
+function morph(el, html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  morphChildren(el, tpl.content);
+}
+
+function morphChildren(from, to) {
+  const a = [...from.childNodes];
+  const b = [...to.childNodes];
+  b.forEach((nb, i) => {
+    const na = a[i];
+    if (!na) from.appendChild(nb);
+    else if (na.nodeType !== nb.nodeType || na.nodeName !== nb.nodeName) from.replaceChild(nb, na);
+    else if (na.nodeType === 1) {
+      if (!na.hasAttribute("data-live")) {
+        for (const { name } of [...na.attributes]) if (!nb.hasAttribute(name)) na.removeAttribute(name);
+        for (const { name, value } of nb.attributes) if (na.getAttribute(name) !== value) na.setAttribute(name, value);
+      }
+      morphChildren(na, nb);
+    } else if (na.nodeValue !== nb.nodeValue) na.nodeValue = nb.nodeValue;
+  });
+  for (let i = b.length; i < a.length; i++) a[i].remove();
+}
 
 // Accepts ISO timestamps ("2026-09-24T22:50:00+00:00") and plain times ("6:50 PM" / "18:50").
 function parseTime(value, now) {
@@ -292,7 +319,8 @@ class ZmanDisplayCard extends HTMLElement {
     this.style.height = `${h}px`;
     stage.style.width = `${dw}px`;
     stage.style.height = `${dw / aspect}px`;
-    stage.style.transform = `scale(${w / dw})`;
+    // zoom (not transform: scale) so text and icons are laid out at the real pixel size and stay sharp.
+    stage.style.zoom = w / dw;
     stage.classList.toggle("portrait", aspect < 1);
     this._fitMain();
   }
@@ -308,7 +336,8 @@ class ZmanDisplayCard extends HTMLElement {
     const fits = (z) => {
       child.style.zoom = z;
       const r = child.getBoundingClientRect();
-      return r.height <= box.height + 1 && r.width <= box.width + 1;
+      const hero = child.querySelector(".shab-hero");
+      return r.height <= box.height + 1 && r.width <= box.width + 1 && (!hero || hero.scrollWidth <= hero.clientWidth + 1);
     };
     let lo = 0.4;
     let hi = 1.4;
@@ -324,7 +353,7 @@ class ZmanDisplayCard extends HTMLElement {
   _set(key, html) {
     if (this._html[key] === html) return false;
     this._html[key] = html;
-    this._el[key].innerHTML = html;
+    morph(this._el[key], html);
     return true;
   }
 
@@ -434,8 +463,19 @@ class ZmanDisplayCard extends HTMLElement {
     return `<div class="alerts">${items
       .map((a) => {
         const extra = a.value_entity ? this._val(a.value_entity) : a.show_state ? this._val(a.entity) : "";
-        const unit = a.value_entity ? this._state(a.value_entity)?.attributes?.unit_of_measurement || "" : "";
-        return `<span class="alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")}${extra ? ` <b>${esc(extra)}${esc(unit ? " " + unit : "")}</b>` : ""}</span>`;
+        const vs = a.value_entity ? this._state(a.value_entity) : null;
+        const unit = vs?.attributes?.unit_of_measurement || "";
+        let value = extra ? `${extra}${unit ? " " + unit : ""}` : "";
+        // A timestamp (e.g. the washer's finish time) becomes a live countdown.
+        const end = vs?.attributes?.device_class === "timestamp" && extra ? new Date(extra) : null;
+        if (end && !isNaN(end)) {
+          if (end <= new Date()) value = "";
+          else return `<span class="alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")} <b class="cd" data-t="${end.getTime()}">${fmtCountdown(end - new Date()).replace(/^00:/, "")}</b></span>`;
+        } else if (unit === "min" && !isNaN(parseFloat(extra))) {
+          const m = Math.round(parseFloat(extra));
+          value = `${Math.floor(m / 60)}:${pad(m % 60)}`;
+        }
+        return `<span class="alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")}${value ? ` <b>${esc(value)}</b>` : ""}</span>`;
       })
       .join("")}</div>`;
   }
@@ -482,14 +522,14 @@ class ZmanDisplayCard extends HTMLElement {
           </defs>
           <line x1="20" y1="300" x2="980" y2="300" class="horizon"/>
           <path d="${arcPath(1)}" class="track"/>
-          <path id="prog" d="M60 300" class="prog"/>
+          <path id="prog" d="M60 300" class="prog" data-live/>
           ${marks}
-          <g id="sun" class="sun">
+          <g id="sun" class="sun" data-live>
             <circle r="46" class="sunglow" filter="url(#zdcGlow)"></circle>
             <g class="rays">${Array.from({ length: 12 }, (_, i) => `<rect x="-2" y="-40" width="4" height="12" rx="2" transform="rotate(${i * 30})"/>`).join("")}</g>
             <circle r="20" fill="url(#zdcSun)"></circle>
           </g>
-          <g id="moon" class="moon" transform="translate(500 110)">
+          <g id="moon" class="moon" transform="translate(500 110)" data-live>
             <circle r="40" class="moonglow" filter="url(#zdcGlow)"></circle>
             <path d="M 12 -26 A 28 28 0 1 0 12 26 A 22 22 0 1 1 12 -26 Z"></path>
           </g>
@@ -521,7 +561,7 @@ class ZmanDisplayCard extends HTMLElement {
         <rect x="-32" y="206" width="64" height="16" rx="6" class="holder"/>
       </g>`;
     return `
-      <div class="shab">
+      <div class="shab" data-live>
         <div class="shab-hero">
           <svg viewBox="0 0 300 230" class="candles">${flame(95)}${flame(205)}</svg>
           <div class="stitle">${esc(title)}</div>
@@ -656,6 +696,11 @@ class ZmanDisplayCard extends HTMLElement {
       const el = root.getElementById(id);
       if (el) el.textContent = fmtCountdown(Number(el.dataset.t) - now);
     }
+    for (const el of root.querySelectorAll(".cd")) {
+      const left = Number(el.dataset.t) - now;
+      if (left <= 0) this._dirty = true;
+      el.textContent = fmtCountdown(left).replace(/^00:/, "");
+    }
     const sun = root.getElementById("sun");
     if (!sun) return;
     const zmanim = this._zmanim(now);
@@ -719,6 +764,7 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .alerts { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
 .alert { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:14px; font-size:18px;
   background:rgba(20,16,30,.55); backdrop-filter:blur(10px); border:1px solid; animation:pulse 2.4s ease-in-out infinite; }
+.alert .cd { font-variant-numeric:tabular-nums; }
 .alert ha-icon { --mdc-icon-size:22px; }
 .alert.red { color:#ff8a80; border-color:rgba(255,120,110,.6); } .alert.amber { color:#ffd180; border-color:rgba(255,200,110,.55); }
 .alert.blue { color:#8fd3ff; border-color:rgba(120,200,255,.55); } .alert.pink { color:#ff9ec7; border-color:rgba(255,150,200,.55); }
@@ -764,10 +810,10 @@ main > * { flex:none; }
 .stitle { font-family:'Frank Ruhl Libre', serif; font-weight:900; font-size:74px; line-height:1.05; margin-top:6px;
   background:linear-gradient(180deg, #fff3d6, #ffc46b 55%, #ff8f4d); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 22px rgba(255,160,60,.45)); }
-.stimes { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:18px; }
-.st { padding:14px 10px; border-radius:22px; background:rgba(255,190,110,.08); border:1px solid rgba(255,190,110,.35); backdrop-filter:blur(10px); display:flex; flex-direction:column; gap:2px; }
+.stimes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+.st { padding:12px 6px; border-radius:22px; background:rgba(255,190,110,.08); border:1px solid rgba(255,190,110,.35); backdrop-filter:blur(10px); display:flex; flex-direction:column; gap:2px; }
 .st span { font-size:20px; color:rgba(255,236,210,.85); }
-.st b { direction:ltr; font-size:61px; font-weight:700; color:#fff3e0; line-height:1.05; }
+.st b { direction:ltr; font-size:50px; letter-spacing:-1px; font-weight:700; color:#fff3e0; line-height:1.05; }
 .st small { color:rgba(255,236,210,.6); font-size:16px; }
 .scd { margin-top:14px; max-width:100%; box-sizing:border-box; flex-wrap:wrap; justify-content:center; display:inline-flex; align-items:baseline; column-gap:10px; padding:8px 18px; border-radius:999px;
   background:linear-gradient(90deg, rgba(255,180,90,.25), rgba(255,120,80,.15)); border:1px solid rgba(255,180,90,.5); box-shadow:0 0 30px rgba(255,150,70,.3); }
