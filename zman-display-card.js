@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.7.3";
+const ZDC_VERSION = "0.8.0";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -29,6 +29,8 @@ const ZDC_DEFAULTS = {
   havdalah: "sensor.yidcal_zman_motzi",
   shul_schedule: "sensor.shul_zmanim",
   weather_alert: "",
+  // NWS alerts sensor (nws_alerts integration); each active alert gets its own chip.
+  nws_alerts: "",
   // Any of these "on" switches the display into Shabbos / Yom Tov mode.
   shabbos_mode: [
     "binary_sensor.yidcal_erev",
@@ -285,13 +287,38 @@ const esc = (s) =>
 
 const pad = (n) => String(n).padStart(2, "0");
 
-// Chance of rain and humidity for one forecast entry, each shown only when above 50%
-// (the empty slot keeps every column the same height).
 const over50 = (v) => (v != null && !isNaN(v) && v > 50 ? `${Math.round(v)}%` : "");
-const rainHum = (f) => {
-  const rain = over50(f.precipitation_probability);
-  const hum = over50(f.humidity);
-  return `<em class="rain">${rain && `☂ ${rain}`}</em><em class="hum">${hum && `💧${hum}`}</em>`;
+
+// Wind worth mentioning: sustained at/over the threshold, or gusts well over it.
+const ZDC_WIND_MIN = { mph: 15, "km/h": 25, "m/s": 7, kn: 13 };
+// compact (narrow hourly columns): one number, the gust when only the gusts are strong.
+const windText = (speed, gust, min, compact = false) => {
+  const s = Number(speed);
+  const g = Number(gust);
+  if (!(s >= min) && !(g >= min * 1.6)) return "";
+  if (compact) return `💨${Math.round(s >= min ? s : g)}`;
+  return `💨${Math.round(s || 0)}${g > s + 5 ? `–${Math.round(g)}` : ""}`;
+};
+
+// Extra lines under each forecast item: rain and humidity over 50%, strong wind.
+// A line exists only if some item in that row has a value for it, so a calm,
+// dry row carries no empty space; the items that do share it stay aligned.
+function fcExtras(items, windMin, compact = false) {
+  const fields = [
+    ["rain", (f) => over50(f.precipitation_probability) && `☂ ${over50(f.precipitation_probability)}`],
+    ["hum", (f) => over50(f.humidity) && `💧${over50(f.humidity)}`],
+    ["wind", (f) => windText(f.wind_speed, f.wind_gust_speed, windMin, compact)],
+  ];
+  const used = fields.filter(([, get]) => items.some((f) => get(f)));
+  return items.map((f) => used.map(([cls, get]) => `<em class="${cls}">${get(f) || ""}</em>`).join(""));
+}
+
+const wxIcon = (event) => {
+  const e = String(event || "").toLowerCase();
+  const map = [[/tornado/, "mdi:weather-tornado"], [/hurricane|tropical/, "mdi:weather-hurricane"], [/thunder/, "mdi:weather-lightning"],
+    [/flood/, "mdi:home-flood"], [/wind/, "mdi:weather-windy"], [/winter|snow|ice|blizzard|freez|frost/, "mdi:weather-snowy-heavy"],
+    [/heat/, "mdi:thermometer-high"], [/fog/, "mdi:weather-fog"], [/air quality|smoke/, "mdi:smoke"]];
+  return (map.find(([re]) => re.test(e)) || [0, "mdi:alert"])[1];
 };
 
 const fmtTime = (d) => (d ? `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}` : "--:--");
@@ -307,10 +334,12 @@ const fmtCountdown = (ms) => {
 // Update `el` to match `html` in place: only changed text and attributes are
 // touched, so icons and animations don't restart (no blinking on sensor updates).
 // Attributes of elements marked data-live are left alone; the per-second updater owns them.
+// The new markup is parsed in the page's own document (not an inert <template>)
+// so custom elements such as <ha-icon> get upgraded when they are inserted.
 function morph(el, html) {
-  const tpl = document.createElement("template");
-  tpl.innerHTML = html;
-  morphChildren(el, tpl.content);
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  morphChildren(el, range.createContextualFragment(html));
 }
 
 function morphChildren(from, to) {
@@ -474,9 +503,9 @@ class ZmanDisplayCard extends HTMLElement {
               <div class="hm"><span id="hm">--:--</span><span class="ss" id="ss">00</span></div>
               <div class="gdate" id="gdate"></div>
             </div>
-            <div class="alertwrap" id="alerts"></div>
             <div class="hebrew" id="hebrew"></div>
           </header>
+          <div class="chiprow" id="chiprow" hidden><div class="chipset" id="alerts"></div><div class="chipset heb" id="pills"></div></div>
           <main id="main"></main>
           <footer id="foot"></footer>
         </div>
@@ -488,6 +517,8 @@ class ZmanDisplayCard extends HTMLElement {
       gdate: root.getElementById("gdate"),
       hebrew: root.getElementById("hebrew"),
       alerts: root.getElementById("alerts"),
+      pills: root.getElementById("pills"),
+      chiprow: root.getElementById("chiprow"),
       main: root.getElementById("main"),
       theme: root.getElementById("theme"),
       foot: root.getElementById("foot"),
@@ -580,7 +611,11 @@ class ZmanDisplayCard extends HTMLElement {
     this._el.gdate.textContent = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
     this._set("hebrew", this._hebrewHtml(now));
-    this._set("alerts", this._alertsHtml());
+    const alerts = this._alertsHtml();
+    const pills = this._pillsHtml();
+    this._set("alerts", alerts);
+    this._set("pills", pills);
+    this._el.chiprow.hidden = !alerts && !pills;
     const mainChanged = this._set("main", shabbos ? this._shabbosHtml(now) : this._arcHtml(now, zmanim));
     this._set("foot", this._footHtml(now));
     this._fit(mainChanged);
@@ -600,7 +635,8 @@ class ZmanDisplayCard extends HTMLElement {
     return t < 0.12 ? "dawn" : t < 0.86 ? "day" : "dusk";
   }
 
-  _hebrewHtml(now) {
+  // Holiday chips (right side of the chip row).
+  _pillsHtml() {
     const c = this._config;
     const pills = [];
     const holiday = this._val(c.holiday);
@@ -610,12 +646,16 @@ class ZmanDisplayCard extends HTMLElement {
     if (this._on(c.kiddush_levana)) pills.push(["🌕", "קידוש לבנה", "moon"]);
     const upcoming = this._val(c.upcoming_holiday).split(",")[0].trim();
     if (this._on(c.upcoming_yomtov) && upcoming) pills.push(["⏳", `בקרוב: ${upcoming}`, "mint"]);
+    return pills.map(([i, t, k]) => `<span class="chip pill ${k}">${i} ${esc(t)}</span>`).join("");
+  }
+
+  _hebrewHtml(now) {
+    const c = this._config;
     const daf = this._val(c.daf_yomi);
     return `
       <div class="hdate">${esc(this._val(c.hebrew_date))}</div>
       ${this._shabbosName() ? `<div class="hparsha">${esc(this._shabbosName())}</div>` : ""}
-      <div class="hday">${ZDC_HEB_DAYS[now.getDay()]}${daf ? ` <span class="dot">•</span> דף היומי <b>${esc(daf)}</b>` : ""}</div>
-      ${pills.length ? `<div class="pills">${pills.map(([i, t, k]) => `<span class="pill ${k}">${i} ${esc(t)}</span>`).join("")}</div>` : ""}`;
+      <div class="hday">${ZDC_HEB_DAYS[now.getDay()]}${daf ? ` <span class="dot">•</span> דף היומי <b>${esc(daf)}</b>` : ""}</div>`;
   }
 
   // "פרשת …" when there is one; otherwise the Yom Tov that falls on this Shabbos.
@@ -674,10 +714,9 @@ class ZmanDisplayCard extends HTMLElement {
       if (a.state_not !== undefined) return ![].concat(a.state_not).map(String).includes(st.state) && !ZDC_BAD.has(st.state);
       return st.state === "on";
     });
-    const wa = this._val(this._config.weather_alert);
-    if (wa && wa !== "off") items.unshift({ icon: "mdi:alert", name: wa, color: "red" });
-    if (!items.length) return "";
-    return `<div class="alerts">${items
+    const wx = this._weatherAlerts().map((w) => `<span class="chip alert wx ${w.severe ? "red" : "amber"}"><ha-icon icon="${w.icon}"></ha-icon>${esc(w.event)}${w.until ? ` <b>until ${esc(w.until)}</b>` : ""}</span>`);
+    if (!items.length && !wx.length) return "";
+    return wx.join("") + `${items
       .map((a) => {
         const extra = a.value_entity ? this._val(a.value_entity) : a.show_state ? this._val(a.entity) : "";
         const vs = a.value_entity ? this._state(a.value_entity) : null;
@@ -687,14 +726,37 @@ class ZmanDisplayCard extends HTMLElement {
         const end = vs?.attributes?.device_class === "timestamp" && extra ? new Date(extra) : null;
         if (end && !isNaN(end)) {
           if (end <= new Date()) value = "";
-          else return `<span class="alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")} <b class="cd" data-t="${end.getTime()}">${fmtCountdown(end - new Date()).replace(/^00:/, "")}</b></span>`;
+          else return `<span class="chip alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")} <b class="cd" data-t="${end.getTime()}">${fmtCountdown(end - new Date()).replace(/^00:/, "")}</b></span>`;
         } else if (unit === "min" && !isNaN(parseFloat(extra))) {
           const m = Math.round(parseFloat(extra));
           value = `${Math.floor(m / 60)}:${pad(m % 60)}`;
         }
-        return `<span class="alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")}${value ? ` <b>${esc(value)}</b>` : ""}</span>`;
+        return `<span class="chip alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")}${value ? ` <b>${esc(value)}</b>` : ""}</span>`;
       })
-      .join("")}</div>`;
+      .join("")}`;
+  }
+
+  // Active weather alerts: from the NWS alerts sensor when configured, else the
+  // weather_alert text sensor ("Event • Event", "off" when clear).
+  _weatherAlerts() {
+    const c = this._config;
+    const list = this._state(c.nws_alerts)?.attributes?.Alerts;
+    if (Array.isArray(list)) {
+      const now = new Date();
+      return list.map((al) => {
+        const sev = String(al.Severity || "").toLowerCase();
+        const end = new Date(al.Ends || al.Expires || "");
+        let until = "";
+        if (!isNaN(end)) {
+          until = `${fmtTime(end)} ${end.getHours() < 12 ? "AM" : "PM"}`;
+          if (end.toDateString() !== now.toDateString()) until = `${ZDC_SHORT_DAYS[end.getDay()]} ${until}`;
+        }
+        return { event: al.Event || al.Headline || "Weather alert", severe: sev === "extreme" || sev === "severe", until, icon: wxIcon(al.Event) };
+      });
+    }
+    const wa = this._val(c.weather_alert);
+    if (!wa || wa === "off") return [];
+    return wa.split("•").map((e) => e.trim()).filter(Boolean).map((e) => ({ event: e, severe: true, until: "", icon: wxIcon(e) }));
   }
 
   _arcHtml(now, zmanim) {
@@ -818,17 +880,23 @@ class ZmanDisplayCard extends HTMLElement {
       const hours = (this._hourly || []).filter((f) => new Date(f.datetime) > now).slice(0, c.forecast_hours);
       const days = (this._daily || []).slice(0, c.forecast_days);
       const today = days[0];
-      tiles.push(`<div class="tile weather">
+      const windMin = Number(c.wind_threshold) || ZDC_WIND_MIN[a.wind_speed_unit] || 15;
+      const hx = fcExtras(hours, windMin, true);
+      const dx = fcExtras(days, windMin);
+      const wind = windText(a.wind_speed, a.wind_gust_speed, windMin);
+      const severe = this._weatherAlerts().filter((x) => x.severe);
+      tiles.push(`<div class="tile weather${severe.length ? " warn" : ""}">
+        ${severe.length ? `<div class="wxwarn"><ha-icon icon="${severe[0].icon}"></ha-icon>${severe.map((x) => esc(x.event) + (x.until ? ` <b>until ${esc(x.until)}</b>` : "")).join(" · ")}</div>` : ""}
         <div class="wnow">
           <ha-icon icon="${icon(w.state)}"></ha-icon>
           <div><div class="wtemp">${a.temperature != null ? Math.round(a.temperature) : "--"}°</div>
-          <div class="wcond">${esc(String(w.state).replace("partlycloudy", "partly cloudy").replace(/-/g, " "))}${a.humidity != null ? ` · 💧${Math.round(a.humidity)}%` : ""}</div></div>
+          <div class="wcond">${esc(String(w.state).replace("partlycloudy", "partly cloudy").replace(/-/g, " "))}${a.humidity != null ? ` · 💧${Math.round(a.humidity)}%` : ""}${wind ? ` · <span class="wwind">${wind} ${esc(a.wind_speed_unit || "")}</span>` : ""}</div></div>
           ${today ? `<div class="whilo"><span>▲ ${Math.round(today.temperature)}°</span><span>▼ ${Math.round(today.templow ?? today.temperature)}°</span></div>` : ""}
         </div>
         ${hours.length ? `<div class="hours">${hours
-          .map((f) => {
+          .map((f, i) => {
             const d = new Date(f.datetime);
-            return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${rainHum(f)}</div>`;
+            return `<div class="hr"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${hx[i]}</div>`;
           })
           .join("")}</div>` : ""}
         ${days.length ? `<div class="days">${days
@@ -839,10 +907,10 @@ class ZmanDisplayCard extends HTMLElement {
               <span class="dhi">${Math.round(f.temperature)}°</span>
               <span class="bar"></span>
               <span class="dlo">${Math.round(low)}°</span>
-              ${rainHum(f)}</div>`;
+              ${dx[i]}</div>`;
           })
           .join("")}</div>` : ""}
-        ${this._tickerHtml(hours, days, icon)}
+        ${this._tickerHtml(hours, days, icon, hx, dx)}
       </div>`);
     }
 
@@ -890,17 +958,17 @@ class ZmanDisplayCard extends HTMLElement {
   }
 
   // Shabbos-mode forecast: two fixed rows (hourly on top, daily below), all visible at once.
-  _tickerHtml(hours, days, icon) {
+  _tickerHtml(hours, days, icon, hx, dx) {
     if (!hours.length && !days.length) return "";
     const row = (label, items) =>
       items.length ? `<div class="frow"><span class="tlabel">${label}</span><div class="fitems" style="--n:${items.length}">${items.join("")}</div></div>` : "";
-    const hourItems = hours.map((f) => {
+    const hourItems = hours.map((f, i) => {
       const d = new Date(f.datetime);
-      return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${rainHum(f)}</span>`;
+      return `<span class="ti"><small>${d.getHours() % 12 || 12}${d.getHours() < 12 ? "a" : "p"}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°</b>${hx[i]}</span>`;
     });
     const dayItems = days.map((f, i) => {
       const d = new Date(f.datetime);
-      return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°<i>${Math.round(f.templow ?? f.temperature)}°</i></b>${rainHum(f)}</span>`;
+      return `<span class="ti"><small>${i === 0 ? "Today" : ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><b>${Math.round(f.temperature)}°<i>${Math.round(f.templow ?? f.temperature)}°</i></b>${dx[i]}</span>`;
     });
     return `<div class="ticker">${row("Hourly", hourItems)}${row("7 days", dayItems)}</div>`;
   }
@@ -968,21 +1036,30 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .hparsha { margin-top:4px; font-family:'Frank Ruhl Libre', serif; font-weight:700; font-size:42px; color:#e6c7ff; text-shadow:0 0 18px rgba(200,150,255,.45); }
 .hday { margin-top:6px; font-size:24px; color:rgba(247,241,230,.8); }
 .hday b { color:#e6c7ff; font-weight:600; } .dot { color:var(--a2); margin:0 6px; }
-.pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; justify-content:flex-start; }
-.pill { padding:5px 14px; border-radius:999px; font-size:17px; font-weight:500;
-  background:rgba(20,20,36,.6); border:1px solid rgba(255,255,255,.18); }
+/* One row of chips under the header: device and weather alerts on the left,
+   holiday chips on the right. Hidden (no space at all) when there are none. */
+.chiprow { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:-2px; }
+.chiprow[hidden] { display:none; }
+.chipset { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.chipset:empty { display:none; }
+.chipset.heb { direction:rtl; margin-left:auto; }
+.chip { display:inline-flex; align-items:center; gap:7px; box-sizing:border-box; height:38px; padding:0 15px; border-radius:999px;
+  font-size:17px; font-weight:500; line-height:1; white-space:nowrap; background:rgba(16,14,28,.82); border:1px solid rgba(255,255,255,.18); }
+.chip b { font-weight:700; }
 .pill.gold { color:#ffd88a; border-color:rgba(255,200,110,.5); box-shadow:0 0 14px rgba(255,190,90,.25); }
 .pill.violet { color:#e6c7ff; border-color:rgba(206,160,255,.45); }
 .pill.sky { color:#a8ecff; border-color:rgba(130,220,255,.45); }
 .pill.moon { color:#fff6b0; border-color:rgba(255,245,160,.45); box-shadow:0 0 14px rgba(255,245,160,.2); }
 .pill.mint { color:#b8f5c8; border-color:rgba(150,240,180,.45); }
 
-.alertwrap { flex:1; align-self:center; }
-.alerts { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
-.alert { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:14px; font-size:18px;
-  background:rgba(20,16,30,.8); border:1px solid; }
 .alert .cd { font-variant-numeric:tabular-nums; }
-.alert ha-icon { --mdc-icon-size:22px; }
+.alert ha-icon { --mdc-icon-size:20px; }
+.alert.wx.red { background:rgba(90,10,10,.85); color:#ffd2cc; border-color:#ff6b5e; box-shadow:0 0 16px rgba(255,80,60,.45); }
+.wxwarn { display:flex; align-items:center; gap:8px; margin:-4px -4px 10px; padding:6px 12px; border-radius:12px; background:rgba(150,20,20,.55);
+  border:1px solid rgba(255,110,100,.7); color:#ffe1dc; font-size:16px; font-weight:500; }
+.wxwarn ha-icon { --mdc-icon-size:20px; } .weather.warn { border-color:rgba(255,110,100,.7); }
+.shabbos .weather { flex-wrap:wrap; } .shabbos .wxwarn { flex-basis:100%; margin:0; }
+.wwind { color:#c9d7ff; font-weight:600; text-transform:none; } em.wind { color:#c9d7ff; }
 .alert.red { color:#ff8a80; border-color:rgba(255,120,110,.6); } .alert.amber { color:#ffd180; border-color:rgba(255,200,110,.55); }
 .alert.blue { color:#8fd3ff; border-color:rgba(120,200,255,.55); } .alert.pink { color:#ff9ec7; border-color:rgba(255,150,200,.55); }
 
@@ -1053,14 +1130,14 @@ main > * { flex:none; }
 .shabbos .hdate { font-size:50px; }
 .shabbos .hparsha { font-size:32px; margin-top:0; }
 .shabbos .hday { font-size:19px; margin-top:2px; }
-.shabbos .pills { margin-top:6px; }
+.shabbos .chip { height:32px; font-size:15px; padding:0 12px; }
 .shabbos .hours, .shabbos .days, .shabbos .tiles .events { display:none; }
 .shabbos .tiles { grid-template-columns:minmax(0, 1.9fr) minmax(0, 1fr); gap:12px; }
 .shabbos .tile { padding:12px 16px; border-radius:20px; }
 .shabbos .weather { display:flex; align-items:center; gap:18px; }
 .shabbos .wnow { flex:none; gap:10px; flex-direction:column; align-items:flex-start; }
 .shabbos .wnow > div { display:flex; flex-direction:column; }
-.shabbos .wnow ha-icon { display:none; }
+.shabbos .wnow ha-icon { display:none !important; }
 .shabbos .wtemp { font-size:64px; font-weight:400; }
 .shabbos .wcond { font-size:18px; }
 .shabbos .whilo { flex-direction:row; gap:12px; font-size:22px; margin:0; }
@@ -1076,7 +1153,7 @@ main > * { flex:none; }
   text-align:center; padding:2px 3px; border-left:2px solid rgba(255,196,107,.45); }
 .shabbos .rooms { gap:6px; }
 .shabbos .room { flex:1 1 calc(100% / 4 - 6px); padding:6px 2px; gap:0; border-radius:14px; }
-.shabbos .room ha-icon, .shabbos .room small { display:none; }
+.shabbos .room ha-icon, .shabbos .room small { display:none !important; }
 .shabbos .room b { font-size:40px; font-weight:600; } .shabbos .room span { font-size:15px; letter-spacing:.3px; color:rgba(247,241,230,.8); }
 .shabbos .mode { font-size:13px; padding:0 6px; }
 
@@ -1180,7 +1257,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
   background:radial-gradient(34% 30% at 14% 9%, rgba(0,0,0,.55), transparent 72%),
     radial-gradient(34% 30% at 86% 9%, rgba(0,0,0,.55), transparent 72%),
     radial-gradient(60% 22% at 50% 62%, rgba(0,0,0,.35), transparent 75%); }
-.themed .hm, .themed .gdate, .themed .hday, .themed .hparsha, .themed .nextbox, .themed .pill { text-shadow:0 2px 4px rgba(0,0,0,.9), 0 0 16px rgba(0,0,0,.65); }
+.themed .hm, .themed .gdate, .themed .hday, .themed .hparsha, .themed .nextbox, .themed .chip { text-shadow:0 2px 4px rgba(0,0,0,.9), 0 0 16px rgba(0,0,0,.65); }
 .themed .hdate, .themed .stitle { filter:drop-shadow(0 2px 3px rgba(0,0,0,.9)) drop-shadow(0 0 14px rgba(0,0,0,.6)); }
 .themed .mark text { paint-order:stroke; stroke:rgba(0,0,0,.75); stroke-width:5px; stroke-linejoin:round; }
 .themed .mark.past text { opacity:.7; }
