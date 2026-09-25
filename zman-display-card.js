@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.2";
+const ZDC_VERSION = "0.9.3";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -50,6 +50,8 @@ const ZDC_DEFAULTS = {
   forecast_hours: 12,
   forecast_days: 7,
   alerts: [],
+  // Sukkah lights/heaters run by schedule-helper automations; {} = off.
+  sukkah: {},
 };
 
 const ZDC_HEB_DAYS = ["יום א׳", "יום ב׳", "יום ג׳", "יום ד׳", "יום ה׳", "יום ו׳", "שבת קודש"];
@@ -323,6 +325,10 @@ const wxIcon = (event) => {
 };
 
 const fmtTime = (d) => (d ? `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}` : "--:--");
+
+// "6:22 PM", or "Sat 12:00 PM" when it isn't today.
+const fmtWhen = (d, now) =>
+  `${d.toDateString() !== now.toDateString() ? ZDC_SHORT_DAYS[d.getDay()] + " " : ""}${fmtTime(d)} ${d.getHours() < 12 ? "AM" : "PM"}`;
 
 const fmtCountdown = (ms) => {
   if (ms < 0) ms = 0;
@@ -724,8 +730,9 @@ class ZmanDisplayCard extends HTMLElement {
       return st.state === "on";
     });
     const wx = this._weatherAlerts().map((w) => `<span class="chip alert wx ${w.severe ? "red" : "amber"}"><ha-icon icon="${w.icon}"></ha-icon>${esc(w.event)}${w.until ? ` <b>until ${esc(w.until)}</b>` : ""}</span>`);
-    if (!items.length && !wx.length) return "";
-    return wx.join("") + `${items
+    const sk = this._sukkahChips();
+    if (!items.length && !wx.length && !sk) return "";
+    return wx.join("") + sk + `${items
       .map((a) => {
         const extra = a.value_entity ? this._val(a.value_entity) : a.show_state ? this._val(a.entity) : "";
         const vs = a.value_entity ? this._state(a.value_entity) : null;
@@ -743,6 +750,49 @@ class ZmanDisplayCard extends HTMLElement {
         return `<span class="chip alert ${esc(a.color || "amber")}"><ha-icon icon="${esc(a.icon || "mdi:alert-circle")}"></ha-icon>${esc(a.name || "")}${value ? ` <b>${esc(value)}</b>` : ""}</span>`;
       })
       .join("")}`;
+  }
+
+  // Sukkah chips: when the lights next switch, and when/why the heaters next run.
+  // Each part shows only while its automation is enabled, so they disappear after Yom Tov.
+  _sukkahChips() {
+    const k = this._config.sukkah || {};
+    const now = new Date();
+    const chip = (cls, icon, html) => `<span class="chip alert ${cls}"><ha-icon icon="${icon}"></ha-icon>${html}</span>`;
+    const cd = (d) => `<b class="cd" data-t="${d.getTime()}">${fmtCountdown(d - now).replace(/^00:/, "")}</b>`;
+    const active = (a) => !a || this._on(a);
+    let out = "";
+
+    const ls = this._state(k.light_schedule);
+    if (ls && active(k.lights_automation)) {
+      const next = ls.attributes?.next_event ? new Date(ls.attributes.next_event) : null;
+      const on = ls.state === "on";
+      if (next && !isNaN(next)) out += chip("sukl", "mdi:string-lights", `Sukkah lights ${on ? "off" : "on"} <b>${fmtWhen(next, now)}</b>`);
+      else if (on) out += chip("sukl", "mdi:string-lights", "Sukkah lights on");
+    }
+
+    const hs = this._state(k.heater_schedule);
+    if (hs && active(k.heaters_automation)) {
+      const ts = (id) => {
+        const t = this._state(id)?.attributes?.timestamp;
+        return t ? new Date(t * 1000) : null;
+      };
+      const heating = [].concat(k.heaters || []).some((h) => this._on(h));
+      const next = hs.attributes?.next_event ? new Date(hs.attributes.next_event) : null;
+      const below = Number(k.below ?? 63);
+      const temp = Number(this._state(k.temperature || this._config.weather)?.attributes?.temperature);
+      const warm = isNaN(temp) || temp >= below;
+      const tempWhy = isNaN(temp) ? "no temp reading" : `now ${Math.round(temp)}°, heats below ${below}°`;
+      const offDue = ts(k.off_due);
+      const rest = ts(k.rest_until);
+      let html = "";
+      if (heating) html = `Heaters on · off in ${offDue && offDue > now ? cd(offDue) : "—"} <small>20-min limit</small>`;
+      else if (hs.state === "on" && warm) html = `Heaters waiting <small>${tempWhy}${next ? ` · window ends ${fmtWhen(next, now)}` : ""}</small>`;
+      else if (hs.state === "on" && rest && rest > now) html = `Heaters on in ${cd(rest)} <small>10-min rest</small>`;
+      else if (hs.state === "on") html = `Heaters starting`;
+      else if (next && !isNaN(next)) html = `Heaters next <b>${fmtWhen(next, now)}</b> <small>${warm ? `only if below ${below}° · now ${isNaN(temp) ? "--" : Math.round(temp)}°` : "heat window"}</small>`;
+      if (html) out += chip(`sukh${heating ? " hot" : ""}`, "mdi:radiator", html);
+    }
+    return out;
   }
 
   // Active weather alerts: from the NWS alerts sensor when configured, else the
@@ -1078,6 +1128,9 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .shabbos .weather { flex-wrap:wrap; } .shabbos .wxwarn { flex-basis:100%; margin:0; }
 .wwind { color:#c9d7ff; font-weight:600; text-transform:none; } em.wind { color:#c9d7ff; }
 .alert.red { color:#ff8a80; border-color:rgba(255,120,110,.6); } .alert.amber { color:#ffd180; border-color:rgba(255,200,110,.55); }
+.alert.sukl { color:#ffe08a; border-color:rgba(255,215,120,.55); }
+.alert.sukh { color:#ffb08a; border-color:rgba(255,150,110,.5); } .alert.sukh.hot { background:rgba(90,30,10,.85); box-shadow:0 0 14px rgba(255,120,60,.35); }
+.chip small { font-size:.9em; opacity:.85; font-weight:400; }
 .alert.blue { color:#8fd3ff; border-color:rgba(120,200,255,.55); } .alert.pink { color:#ff9ec7; border-color:rgba(255,150,200,.55); }
 
 footer { position:relative; z-index:2; }
