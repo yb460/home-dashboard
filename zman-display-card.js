@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.1";
+const ZDC_VERSION = "0.9.2";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -27,6 +27,7 @@ const ZDC_DEFAULTS = {
   kiddush_levana: "binary_sensor.yidcal_kiddush_levana",
   candle_lighting: "sensor.yidcal_zman_erev",
   havdalah: "sensor.yidcal_zman_motzi",
+  shkia: "sensor.yidcal_shkia",
   shul_schedule: "sensor.shul_zmanim",
   weather_alert: "",
   // NWS alerts sensor (nws_alerts integration); each active alert gets its own chip.
@@ -837,6 +838,7 @@ class ZmanDisplayCard extends HTMLElement {
     const title = this._shabbosTitle();
     const erev = parseTime(this._val(c.candle_lighting), now);
     const motzi = parseTime(this._val(c.havdalah), now);
+    const shkia = c.shkia ? parseTime(this._val(c.shkia), now) : null;
     const target = erev && erev > now ? ["הדלקת נרות בעוד", erev] : motzi && motzi > now ? ["מוצאי בעוד", motzi] : null;
     const days = [...(sched?.attributes?.days || [])].sort((a, b) => (a.day_order ?? 0) - (b.day_order ?? 0));
     const flame = (x) => `<g transform="translate(${x} 0)">
@@ -854,6 +856,7 @@ class ZmanDisplayCard extends HTMLElement {
           <div class="stitle">${esc(title)}</div>
           <div class="stimes">
             <div class="st"><span>🕯️ הדלקת נרות</span><b>${fmtTime(erev)}</b><small>${erev ? ZDC_HEB_DAYS[erev.getDay()] : ""}</small></div>
+            ${shkia ? `<div class="st sk"><span>🌇 שקיעה</span><b>${fmtTime(shkia)}</b><small>${ZDC_HEB_DAYS[shkia.getDay()]}</small></div>` : ""}
             <div class="st"><span>🍷 מוצאי</span><b>${fmtTime(motzi)}</b><small>${motzi ? ZDC_HEB_DAYS[motzi.getDay()] : ""}</small></div>
           </div>
           ${target ? `<div class="scd"><span>${target[0]}</span><b id="scd" data-t="${target[1].getTime()}">--:--:--</b></div>` : ""}
@@ -1118,11 +1121,14 @@ main > * { flex:none; }
 .stitle { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:74px; line-height:1.05; margin-top:6px;
   background:linear-gradient(180deg, var(--a1), var(--a2) 55%, var(--a3)); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 22px rgba(255,160,60,.45)); }
-.stimes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+.stimes { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:10px; margin-top:18px; align-items:center; }
+.stimes:has(.sk) { grid-template-columns:1fr .72fr 1fr; }
 .st { padding:12px 6px; border-radius:22px; background:rgba(40,24,10,.75); border:1px solid rgba(255,190,110,.35); display:flex; flex-direction:column; gap:2px; }
 .st span { font-size:19px; white-space:nowrap; color:rgba(255,236,210,.85); }
 .st b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-size:50px; letter-spacing:-1px; font-weight:700; color:#fff3e0; line-height:1.05; }
 .st small { color:rgba(255,236,210,.6); font-size:16px; }
+.st.sk { padding:8px 4px; background:rgba(40,24,10,.55); }
+.st.sk span { font-size:15px; } .st.sk b { font-size:32px; } .st.sk small { font-size:13px; }
 .scd { margin-top:14px; max-width:100%; box-sizing:border-box; flex-wrap:wrap; justify-content:center; display:inline-flex; align-items:baseline; column-gap:10px; padding:8px 18px; border-radius:999px;
   background:linear-gradient(90deg, rgba(255,180,90,.25), rgba(255,120,80,.15)); border:1px solid rgba(255,180,90,.5); box-shadow:0 0 30px rgba(255,150,70,.3); }
 .scd span { color:#ffd9a8; font-size:18px; white-space:nowrap; }
