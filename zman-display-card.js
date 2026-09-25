@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.8.1";
+const ZDC_VERSION = "0.9.0";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -473,12 +473,12 @@ class ZmanDisplayCard extends HTMLElement {
 
   // ---------------------------------------------------------------- build
   _build() {
-    if (!document.getElementById("zdc-fonts")) {
+    if (!document.getElementById("zdc-fonts2")) {
       const link = document.createElement("link");
-      link.id = "zdc-fonts";
+      link.id = "zdc-fonts2";
       link.rel = "stylesheet";
       link.href =
-        "https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700;900&family=Rubik:wght@300;400;500;700;800&display=swap";
+        "https://fonts.googleapis.com/css2?family=Suez+One&family=Outfit:wght@500;600;700;800&family=Frank+Ruhl+Libre:wght@500;700;900&family=Rubik:wght@300;400;500;600;700;800&display=swap";
       document.head.appendChild(link);
     }
     const root = this.shadowRoot || this.attachShadow({ mode: "open" });
@@ -857,7 +857,7 @@ class ZmanDisplayCard extends HTMLElement {
           </div>
           ${target ? `<div class="scd"><span>${target[0]}</span><b id="scd" data-t="${target[1].getTime()}">--:--:--</b></div>` : ""}
         </div>
-        <div class="sched">
+        <div class="sched" style="--days:${Math.min(Math.max(days.length, 1), 4)}">
           ${days.length
             ? days
                 .map(
@@ -865,7 +865,13 @@ class ZmanDisplayCard extends HTMLElement {
                     <h3>${esc(d.day_label)}</h3>
                     ${(d.zmanim || [])
                       .map(
-                        (z) => `<div class="srow"><span class="sname">${esc(z.name)}${z.notes ? `<small>${esc(z.notes)}</small>` : ""}</span><b>${esc(String(z.time || "").replace(/\s*[AP]M$/i, ""))}</b></div>`
+                        (z) => {
+                          // AM/PM dropped (context makes it obvious); Hebrew inside a time stays readable.
+                          const time = String(z.time || "").replace(/\s*[AP]\.?M\.?/gi, "").trim();
+                          const notes = String(z.notes || "").split(/[;\n]/).map((n) => n.trim()).filter(Boolean);
+                          return `<div class="srow"><span class="sname">${esc(z.name)}</span><b class="stime" dir="auto">${esc(time)}</b>${
+                            notes.length ? `<div class="snotes">${notes.map((n) => `<span>${esc(n)}</span>`).join("")}</div>` : ""}</div>`;
+                        }
                       )
                       .join("")}
                   </section>`
@@ -1033,15 +1039,15 @@ const ZDC_STYLE = `
 
 .content { position:relative; z-index:1; display:flex; flex-direction:column; gap:12px; padding:30px 34px; height:100%; box-sizing:border-box; }
 header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; }
-.hm { font-weight:300; font-size:200px; line-height:.9; letter-spacing:-3px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
-.ss { font-size:.32em; font-weight:500; letter-spacing:0; margin-left:10px; color:var(--a2); vertical-align:top; display:inline-block; margin-top:.35em; }
-.gdate { margin-top:6px; font-size:26px; color:rgba(247,241,230,.75); letter-spacing:.5px; }
+.hm { font-family:'Outfit', 'Rubik', sans-serif; font-weight:700; font-size:196px; line-height:.9; letter-spacing:-4px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
+.ss { font-size:.3em; font-weight:600; letter-spacing:0; margin-left:10px; color:var(--a2); vertical-align:top; display:inline-block; margin-top:.35em; }
+.gdate { margin-top:8px; font-family:'Outfit', 'Rubik', sans-serif; font-weight:500; font-size:26px; color:rgba(247,241,230,.8); letter-spacing:.5px; }
 .hebrew { direction:rtl; text-align:right; }
-.hdate { font-family:'Frank Ruhl Libre', serif; font-weight:900; font-size:70px; line-height:1.05;
+.hdate { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:72px; line-height:1.05;
   background:linear-gradient(180deg, var(--a1), var(--a2) 60%, var(--a3)); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 18px rgba(255,170,80,.35)); }
-.hparsha { margin-top:4px; font-family:'Frank Ruhl Libre', serif; font-weight:700; font-size:42px; color:#e6c7ff; text-shadow:0 0 18px rgba(200,150,255,.45); }
-.hday { margin-top:6px; font-size:24px; color:rgba(247,241,230,.8); }
+.hparsha { margin-top:4px; font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:42px; color:#e6c7ff; text-shadow:0 0 18px rgba(200,150,255,.45); }
+.hday { margin-top:6px; font-size:24px; font-weight:500; color:rgba(247,241,230,.85); }
 .hday b { color:#e6c7ff; font-weight:600; } .dot { color:var(--a2); margin:0 6px; }
 /* One row of chips under the header: device and weather alerts on the left,
    holiday chips on the right. Hidden (no space at all) when there are none. */
@@ -1084,8 +1090,8 @@ main > * { flex:none; }
 .mark.next circle { fill:#fff; stroke:#ff9a5a; stroke-width:4; animation:beat 1.6s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
 @keyframes beat { 0%,100% { transform:scale(1); } 50% { transform:scale(1.35); } }
 .mark text { text-anchor:middle; fill:#f7f1e6; }
-.lname { font-family:'Frank Ruhl Libre', serif; font-size:21px; font-weight:700; direction:rtl; unicode-bidi:plaintext; }
-.ltime { font-size:22px; font-weight:500; fill:#ffd27a !important; }
+.lname { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-size:21px; font-weight:400; direction:rtl; unicode-bidi:plaintext; }
+.ltime { font-family:'Outfit', 'Rubik', sans-serif; font-size:22px; font-weight:700; fill:#ffd27a !important; }
 .mark.past text { opacity:.45; }
 .mark.next .lname { fill:#fff; } .mark.next .ltime { fill:#ffb36b !important; font-weight:800; }
 .sun { transition:transform 1s linear, opacity 3s; }
@@ -1095,8 +1101,8 @@ main > * { flex:none; }
 .moon { transition:opacity 3s; opacity:0; } .moon path { fill:#fff4c9; } .moonglow { fill:#fff4c9; opacity:.35; }
 .nextbox { position:absolute; left:50%; bottom:2%; transform:translateX(-50%); text-align:center; direction:rtl; width:60%; }
 .nlabel { font-size:1.15cqw; font-weight:500; color:var(--a2); }
-.nname { font-family:'Frank Ruhl Libre', serif; font-weight:900; font-size:3.4cqw; line-height:1.1; }
-.ncount { direction:ltr; font-variant-numeric:tabular-nums; font-weight:300; font-size:3cqw; letter-spacing:2px; color:#fff; text-shadow:0 0 24px rgba(255,190,110,.6); }
+.nname { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:3.4cqw; line-height:1.1; }
+.ncount { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-weight:600; font-size:3cqw; letter-spacing:2px; color:#fff; text-shadow:0 0 24px rgba(255,190,110,.6); }
 .nat { direction:ltr; color:rgba(247,241,230,.6); font-size:1.05cqw; }
 
 .shab { width:100%; transform-origin:center center; box-sizing:border-box; display:grid; grid-template-columns:minmax(300px, 0.75fr) 1.9fr; gap:28px; align-items:center; direction:rtl; }
@@ -1108,26 +1114,30 @@ main > * { flex:none; }
 .wick { fill:#3a2a1a; } .wax { fill:#f5ecdc; } .holder { fill:#c9a24a; }
 @keyframes flicker { 0% { transform:scale(1,1) skewX(0deg); } 30% { transform:scale(.96,1.06) skewX(2deg); } 60% { transform:scale(1.03,.95) skewX(-2deg); } 100% { transform:scale(.98,1.04) skewX(1deg); } }
 @keyframes halo { 0%,100% { opacity:.7; transform:scale(1); } 50% { opacity:1; transform:scale(1.12); } }
-.stitle { font-family:'Frank Ruhl Libre', serif; font-weight:900; font-size:74px; line-height:1.05; margin-top:6px;
+.stitle { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:74px; line-height:1.05; margin-top:6px;
   background:linear-gradient(180deg, var(--a1), var(--a2) 55%, var(--a3)); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 22px rgba(255,160,60,.45)); }
 .stimes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
 .st { padding:12px 6px; border-radius:22px; background:rgba(40,24,10,.75); border:1px solid rgba(255,190,110,.35); display:flex; flex-direction:column; gap:2px; }
-.st span { font-size:20px; color:rgba(255,236,210,.85); }
-.st b { direction:ltr; font-size:50px; letter-spacing:-1px; font-weight:700; color:#fff3e0; line-height:1.05; }
+.st span { font-size:19px; white-space:nowrap; color:rgba(255,236,210,.85); }
+.st b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-size:50px; letter-spacing:-1px; font-weight:700; color:#fff3e0; line-height:1.05; }
 .st small { color:rgba(255,236,210,.6); font-size:16px; }
 .scd { margin-top:14px; max-width:100%; box-sizing:border-box; flex-wrap:wrap; justify-content:center; display:inline-flex; align-items:baseline; column-gap:10px; padding:8px 18px; border-radius:999px;
   background:linear-gradient(90deg, rgba(255,180,90,.25), rgba(255,120,80,.15)); border:1px solid rgba(255,180,90,.5); box-shadow:0 0 30px rgba(255,150,70,.3); }
 .scd span { color:#ffd9a8; font-size:18px; white-space:nowrap; }
-.scd b { direction:ltr; font-variant-numeric:tabular-nums; font-size:32px; font-weight:500; color:#fff; white-space:nowrap; }
-.sched { column-width:280px; column-gap:14px; }
-.sday { break-inside:avoid; margin-bottom:14px; padding:14px 18px 10px; border-radius:22px; background:rgba(25,14,6,.8); border:1px solid rgba(255,190,110,.25); }
-.sday h3 { margin:0 0 8px; font-family:'Frank Ruhl Libre', serif; font-size:26px; color:var(--a2); border-bottom:1px solid rgba(255,190,110,.25); padding-bottom:6px; }
-.srow { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:5px 0; border-bottom:1px dashed rgba(255,255,255,.07); }
-.srow:last-child { border-bottom:0; }
-.sname { font-size:18px; display:flex; flex-direction:column; }
-.sname small { color:rgba(255,236,210,.5); font-size:.78em; }
-.srow b { direction:ltr; font-variant-numeric:tabular-nums; color:#fff3e0; font-size:20px; white-space:nowrap; }
+.scd b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-size:32px; font-weight:700; color:#fff; white-space:nowrap; }
+/* One column per day of the schedule (up to 4 across), sharing the full width. */
+.sched { display:grid; grid-template-columns:repeat(var(--days, 2), minmax(0, 1fr)); gap:14px; align-items:start; }
+.sday { overflow:hidden; border-radius:22px; background:linear-gradient(180deg, rgba(40,24,10,.88), rgba(22,13,6,.88)); border:1px solid rgba(255,190,110,.28);
+  box-shadow:inset 0 1px 0 rgba(255,220,160,.12); }
+.sday h3 { margin:0; padding:10px 18px 8px; font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:28px; color:var(--a2);
+  background:linear-gradient(90deg, rgba(255,190,110,.16), rgba(255,190,110,.03)); border-bottom:1px solid rgba(255,190,110,.28); }
+.srow { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; column-gap:14px; padding:8px 18px; }
+.srow + .srow { border-top:1px solid rgba(255,255,255,.07); }
+.sname { font-size:19px; font-weight:600; color:#fbeedd; }
+.stime { font-family:'Outfit', 'Rubik', sans-serif; font-weight:700; font-variant-numeric:tabular-nums; color:#ffe2b3; font-size:21px; white-space:nowrap; unicode-bidi:plaintext; }
+.snotes { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:3px; font-size:15px; color:rgba(255,236,210,.62); }
+.snotes span + span::before { content:"•"; color:var(--a2); opacity:.7; margin-inline-end:14px; }
 /* Shabbos: compact header, the schedule in the middle, and a large bottom row
    with weather (scrolling hourly + 7-day strip) and room temperatures. */
 .ticker { display:none; }
@@ -1174,7 +1184,7 @@ main > * { flex:none; }
 .whilo { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:22px; }
 .whilo span:first-child { color:#ffb36b; } .whilo span:last-child { color:#8fd3ff; }
 .wnow ha-icon { --mdc-icon-size:64px; color:#ffd27a; filter:drop-shadow(0 0 12px rgba(255,200,110,.5)); }
-.wtemp { font-size:58px; font-weight:300; line-height:1; }
+.wtemp { font-family:'Outfit', 'Rubik', sans-serif; font-size:58px; font-weight:600; line-height:1; }
 .wcond { text-transform:capitalize; color:rgba(247,241,230,.7); font-size:17px; }
 .hours { display:grid; grid-template-columns:repeat(auto-fit, minmax(42px, 1fr)); margin-top:12px; gap:2px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.08); }
 .hr { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; }
@@ -1189,7 +1199,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .rooms { display:flex; flex-wrap:wrap; gap:10px; align-content:stretch; }
 .room { box-sizing:border-box; flex:1 1 calc(100% / var(--cols, 4) - 10px); min-width:60px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:10px 4px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid transparent; }
 .room span { font-size:14px; text-transform:uppercase; letter-spacing:1px; color:rgba(247,241,230,.6); }
-.room b { font-size:38px; font-weight:500; line-height:1.05; }
+.room b { font-family:'Outfit', 'Rubik', sans-serif; font-size:38px; font-weight:700; line-height:1.05; }
 .room small { font-size:14px; color:rgba(247,241,230,.5); }
 .room ha-icon { --mdc-icon-size:29px; }
 .room.cold { border-color:rgba(100,200,255,.4); } .room.cold ha-icon { color:#7fd0ff; }
@@ -1201,7 +1211,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .mode.on { background:rgba(120,200,255,.18); color:#8fe9ff; } .mode.off { background:rgba(255,255,255,.06); color:rgba(247,241,230,.45); }
 .events { display:flex; flex-direction:column; gap:6px; }
 .ev { display:flex; align-items:center; gap:14px; }
-.evn { min-width:62px; text-align:center; font-size:28px; font-weight:800; line-height:1; }
+.evn { min-width:62px; text-align:center; font-family:'Outfit', 'Rubik', sans-serif; font-size:28px; font-weight:800; line-height:1; }
 .evn small { display:block; font-size:10px; letter-spacing:2px; font-weight:500; color:rgba(247,241,230,.55); margin-top:3px; }
 .evt { display:flex; flex-direction:column; } .evt b { font-weight:500; font-size:18px; } .evt small { color:rgba(247,241,230,.55); font-size:12px; }
 .ev.c0 .evn { color:#ff9ec7; text-shadow:0 0 14px rgba(255,150,200,.5); } .ev.c1 .evn { color:#8fe9ff; text-shadow:0 0 14px rgba(140,230,255,.5); }
