@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.5";
+const ZDC_VERSION = "0.9.6";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -488,6 +488,9 @@ class ZmanDisplayCard extends HTMLElement {
         "https://fonts.googleapis.com/css2?family=Suez+One&family=Outfit:wght@500;600;700;800&family=Frank+Ruhl+Libre:wght@500;700;900&family=Rubik:wght@300;400;500;600;700;800&display=swap";
       document.head.appendChild(link);
     }
+    // Web fonts change text size when they arrive: fit again once they have.
+    document.fonts?.ready.then(() => this._fit(true));
+    document.fonts?.addEventListener?.("loadingdone", () => this._fit(true));
     const root = this.shadowRoot || this.attachShadow({ mode: "open" });
     let stars = "";
     for (let i = 0; i < 90; i++) {
@@ -557,33 +560,35 @@ class ZmanDisplayCard extends HTMLElement {
   }
 
   // Size the middle section (the Shabbos schedule) to fill the space it has:
-  // find the largest zoom (0.4x-1.4x) at which it still fits. Zoom re-flows the
-  // text, so growing it wraps rather than overflowing sideways. "Fits" is judged
-  // by whether anything spills out of <main> (scroll size vs client size), which
-  // browsers report consistently; bounding boxes under nested zoom do not.
+  // find the largest scale (0.4x-1.4x) at which it still fits. The schedule is laid
+  // out at width W/scale (so it re-flows) and then scaled with a transform; its
+  // plain layout height times the scale must fit <main>. Only offsetHeight and
+  // clientWidth/Height are used, which every browser reports the same way.
   _fitMain() {
     const main = this._el?.main;
     const child = main?.firstElementChild;
     if (!child || child.classList.contains("arcwrap")) return;
-    // Measure top/left-aligned: overflow from a centred box spills up/left too,
-    // and that part never shows up in scrollHeight/scrollWidth.
-    main.style.alignItems = main.style.justifyContent = "flex-start";
+    const W = main.clientWidth;
+    const H = main.clientHeight;
+    if (!W || !H) return;
+    child.classList.toggle("many", child.querySelectorAll(".sday").length >= 3);
+    Object.assign(child.style, { position: "absolute", left: "50%", top: "50%", zoom: "", transform: "" });
+    const hero = child.querySelector(".shab-hero");
     const fits = (z) => {
-      child.style.zoom = z;
-      const hero = child.querySelector(".shab-hero");
-      return main.scrollHeight <= main.clientHeight + 1 &&
-        main.scrollWidth <= main.clientWidth + 1 && (!hero || hero.scrollWidth <= hero.clientWidth + 1);
+      child.style.width = `${W / z}px`;
+      return child.offsetHeight * z <= H && (!hero || hero.scrollWidth <= hero.clientWidth + 1);
     };
     let lo = 0.4;
     let hi = 1.4;
     if (fits(hi)) lo = hi;
-    else for (let i = 0; i < 7; i++) {
+    else for (let i = 0; i < 8; i++) {
       const mid = (lo + hi) / 2;
       if (fits(mid)) lo = mid;
       else hi = mid;
     }
-    child.style.zoom = lo.toFixed(3);
-    main.style.alignItems = main.style.justifyContent = "";
+    lo = Math.floor(lo * 1000) / 1000;
+    child.style.width = `${W / lo}px`;
+    child.style.transform = `translate(-50%, -50%) scale(${lo})`;
   }
 
   _set(key, html) {
@@ -937,7 +942,7 @@ class ZmanDisplayCard extends HTMLElement {
         <rect x="-32" y="206" width="64" height="16" rx="6" class="holder"/>
       </g>`;
     return `
-      <div class="shab${days.length >= 3 ? " many" : ""}" data-live>
+      <div class="shab" data-live>
         <div class="shab-hero">
           <svg viewBox="0 0 300 230" class="candles">${flame(95)}${flame(205)}</svg>
           <div class="stitle">${esc(title)}</div>
@@ -1174,7 +1179,7 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .alert.blue { color:#8fd3ff; border-color:rgba(120,200,255,.55); } .alert.pink { color:#ff9ec7; border-color:rgba(255,150,200,.55); }
 
 footer { position:relative; z-index:2; }
-main { flex:1; display:flex; align-items:center; justify-content:center; min-height:0; overflow:hidden; container-type:size; }
+main { flex:1; position:relative; display:flex; align-items:center; justify-content:center; min-height:0; overflow:hidden; container-type:size; }
 main > * { flex:none; }
 .arcwrap { position:relative; width:min(100cqw, calc(100cqh * 1220 / 350)); aspect-ratio:1220 / 350; container-type:inline-size; }
 .arc { width:100%; height:100%; display:block; overflow:visible; }
@@ -1202,7 +1207,7 @@ main > * { flex:none; }
 .ncount { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-weight:600; font-size:3cqw; letter-spacing:2px; color:#fff; text-shadow:0 0 24px rgba(255,190,110,.6); }
 .nat { direction:ltr; color:rgba(247,241,230,.6); font-size:1.05cqw; }
 
-.shab { width:100%; transform-origin:center center; box-sizing:border-box; display:grid; grid-template-columns:minmax(300px, 0.75fr) 1.9fr; gap:28px; align-items:center; direction:rtl; }
+.shab { width:100%; transform-origin:center center; max-width:none; box-sizing:border-box; display:grid; grid-template-columns:minmax(300px, 0.75fr) 1.9fr; gap:28px; align-items:center; direction:rtl; }
 .shab-hero { text-align:center; }
 .candles { width:min(200px, 55%); height:auto; overflow:visible; }
 .halo { fill:rgba(255,170,70,.28); filter:blur(14px); animation:halo 3s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
@@ -1243,9 +1248,9 @@ main > * { flex:none; }
 .shab.many .candles { width:min(120px, 45%); }
 .shab.many .stitle { font-size:60px; }
 /* Narrow side panel: candle lighting and motzei side by side, shkia as a slim row under them. */
-.shab.many .stimes { grid-auto-flow:row; grid-template-columns:1fr 1fr; }
+.shab.many .stimes { grid-auto-flow:row; grid-template-columns:repeat(2, minmax(0, 1fr)); }
 .shab.many .st.sk { order:1; grid-column:1 / -1; flex-direction:row; justify-content:center; align-items:baseline; gap:8px; padding:4px 8px; }
-.shab.many .st.sk small { white-space:nowrap; } .shab.many .st span { font-size:17px; } .shab.many .st b { font-size:44px; }
+.shab.many .st.sk small { white-space:nowrap; } .shab.many .st span { font-size:16px; } .shab.many .st { min-width:0; } .shab.many .st b { font-size:44px; }
 /* Shabbos: compact header, the schedule in the middle, and a large bottom row
    with weather (scrolling hourly + 7-day strip) and room temperatures. */
 .ticker { display:none; }
