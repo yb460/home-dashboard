@@ -150,7 +150,6 @@ const ZDC_MOTIF = {
       <g transform="translate(108 6)"><path d="M0 110 V 32 a 26 26 0 0 1 52 0 V 110 Z M 54 110 V 32 a 26 26 0 0 1 52 0 V 110 Z" fill="#f3efe2" stroke="#d8c690" stroke-width="3"/>
       ${[40, 56, 72, 88].map((y) => `<path d="M10 ${y}h32M64 ${y}h32" stroke="#6f6245" stroke-width="3" opacity=".6"/>`).join("")}</g></svg>`,
   moon: () => `<svg viewBox="0 0 200 200" class="motif fullmoon"><circle cx="100" cy="100" r="92" fill="#fff4d6" opacity=".12"/><circle cx="100" cy="100" r="62" fill="#fff6dc"/><circle cx="80" cy="86" r="10" fill="#e9dcb8" opacity=".6"/><circle cx="118" cy="118" r="14" fill="#e9dcb8" opacity=".5"/><circle cx="118" cy="78" r="6" fill="#e9dcb8" opacity=".6"/></svg>`,
-  cup: () => `<svg viewBox="0 0 40 40" class="motif kosmotif">${ZDC_SYM.kos}</svg>`,
 };
 
 // Themes, checked in order against YidCal's holiday flags (sensor.yidcal_holiday attributes).
@@ -932,7 +931,7 @@ const ZDC_STYLE = `
 .content { position:relative; z-index:1; display:flex; flex-direction:column; gap:12px; padding:30px 34px; height:100%; box-sizing:border-box; }
 header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; }
 .hm { font-weight:300; font-size:200px; line-height:.9; letter-spacing:-3px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
-.ss { font-size:.32em; font-weight:500; letter-spacing:0; margin-left:10px; color:#ffc46b; vertical-align:top; display:inline-block; margin-top:.35em; color:var(--a2); }
+.ss { font-size:.32em; font-weight:500; letter-spacing:0; margin-left:10px; color:var(--a2); vertical-align:top; display:inline-block; margin-top:.35em; }
 .gdate { margin-top:6px; font-size:26px; color:rgba(247,241,230,.75); letter-spacing:.5px; }
 .hebrew { direction:rtl; text-align:right; }
 .hdate { font-family:'Frank Ruhl Libre', serif; font-weight:900; font-size:70px; line-height:1.05;
