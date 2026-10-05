@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.6";
+const ZDC_VERSION = "0.9.7";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -202,6 +202,67 @@ const ZDC_THEMES = [
   { key: "tubav", on: ["ט\"ו באב"], acc: ["#fff6f8", "#f8bbd0", "#ce93d8"], motif: "moon", float: { items: ["flower", "grapes"], colors: ["#ffffff", "#f8bbd0", "#8e5aa8"], n: 14, move: "drift" } },
   { key: "fast", on: ["צום גדליה", "צום עשרה בטבת", "צום שבעה עשר בתמוז"], acc: ["#e7ecf5", "#aebbd1", "#7f8ca6"] },
 ];
+
+// ---------------------------------------------------------------- parsha art
+// On days with no holiday theme, a small line drawing for this week's parsha sits
+// faintly at the top of the screen. viewBox 0 0 200 140; gold strokes, a few fills.
+const ZDC_PARSHA_ART = {
+  creation: `<circle cx="70" cy="70" r="26"/>${[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => `<path d="M${(70 + 34 * Math.cos(a * Math.PI / 180)).toFixed(1)} ${(70 + 34 * Math.sin(a * Math.PI / 180)).toFixed(1)} L${(70 + 46 * Math.cos(a * Math.PI / 180)).toFixed(1)} ${(70 + 46 * Math.sin(a * Math.PI / 180)).toFixed(1)}"/>`).join("")}
+    <path d="M150 36 A 26 26 0 1 0 150 88 A 32 32 0 1 1 150 36 Z" class="f"/><path d="M178 30 l3 7 7 1 -5 5 1 7 -6 -3 -6 3 1 -7 -5 -5 7 -1z M186 96 l2 4 4 1 -3 3 1 4 -4 -2 -4 2 1 -4 -3 -3 4 -1z" class="f"/>`,
+  ark: `<path d="M30 92 h140 l-18 26 h-104 z"/><path d="M62 92 v-26 h76 v26 M62 66 l38 -18 38 18"/><path d="M90 92 v-14 h20 v14"/><path d="M20 70 A 80 80 0 0 1 180 70" class="rb1"/><path d="M28 72 A 72 72 0 0 1 172 72" class="rb2"/><path d="M20 128 q20 -8 40 0 t40 0 t40 0 t40 0"/>`,
+  stars: [[40, 40, 12], [100, 26, 9], [150, 50, 14], [72, 86, 10], [128, 100, 8], [176, 104, 7], [24, 104, 7], [100, 66, 6]]
+    .map(([x, y, r]) => `<path d="M${x} ${y - r} L${x + r * .87} ${y + r * .5} H${x - r * .87} Z M${x} ${y + r} L${x - r * .87} ${y - r * .5} H${x + r * .87} Z"/>`).join(""),
+  tent: `<path d="M30 118 L90 40 L150 118 Z"/><path d="M90 40 L90 118 M78 118 L90 82 L102 118"/><path d="M90 40 l-6 -12 M90 40 l6 -12"/><path d="M168 118 V70 M168 70 q-18 -6 -26 4 M168 70 q-6 -16 -20 -16 M168 70 q8 -16 22 -12 M168 70 q16 -2 22 10"/><path d="M14 118 H190"/>`,
+  well: `<path d="M50 82 H150 V122 H50 Z"/><path d="M50 96 H150 M50 109 H150 M75 82 V96 M100 96 V109 M125 82 V96 M75 109 V122 M125 109 V122"/><path d="M60 82 V32 M140 82 V32 M54 32 H146"/><path d="M100 32 V58"/><path d="M90 58 H110 L106 72 H94 Z" class="f"/>`,
+  ladder: `<path d="M70 130 L120 12 M100 130 L150 12"/>${[0, 1, 2, 3, 4, 5, 6].map((i) => `<path d="M${(74 + i * 6.7).toFixed(1)} ${(120 - i * 15.7).toFixed(1)} H${(104 + i * 6.7).toFixed(1)}"/>`).join("")}<path d="M36 30 l3 6 6 1 -4 4 1 6 -6 -3 -6 3 1 -6 -4 -4 6 -1z M170 60 l2 4 4 1 -3 3 1 4 -4 -2 -4 2 1 -4 -3 -3 4 -1z M40 92 l2 4 4 1 -3 3 1 4 -4 -2 -4 2 1 -4 -3 -3 4 -1z" class="f"/>`,
+  coat: `<path d="M70 22 L52 30 L22 62 L40 76 L60 56 L60 128 H140 V56 L160 76 L178 62 L148 30 L130 22 Q100 40 70 22 Z"/><path d="M60 72 H140" class="c1"/><path d="M60 88 H140" class="c2"/><path d="M60 104 H140" class="c3"/><path d="M60 120 H140" class="c1"/>`,
+  sheaves: [60, 100, 140].map((x) => `<path d="M${x} 130 L${x} 64 M${x} 100 L${x - 14} 64 M${x} 100 L${x + 14} 64 M${x - 10} 100 H${x + 10}"/>${[0, 1, 2, 3].map((k) => `<ellipse cx="${x}" cy="${56 - k * 10}" rx="4" ry="6"/><ellipse cx="${x - 14}" cy="${58 - k * 9}" rx="3.5" ry="5.5"/><ellipse cx="${x + 14}" cy="${58 - k * 9}" rx="3.5" ry="5.5"/>`).join("")}`).join(""),
+  wagon: `<path d="M30 60 H160 L150 96 H40 Z"/><path d="M160 72 H190"/><circle cx="64" cy="108" r="18"/><circle cx="128" cy="108" r="18"/><circle cx="64" cy="108" r="3" class="f"/><circle cx="128" cy="108" r="3" class="f"/><path d="M64 90 V126 M46 108 H82 M128 90 V126 M110 108 H146"/><path d="M50 60 q12 -22 28 -6 q14 -20 30 -2 q16 -16 30 8"/>`,
+  crown: `<path d="M40 104 L30 40 L70 74 L100 26 L130 74 L170 40 L160 104 Z"/><path d="M40 118 H160 M40 104 V118 M160 104 V118"/><circle cx="30" cy="36" r="6" class="f"/><circle cx="100" cy="22" r="7" class="f"/><circle cx="170" cy="36" r="6" class="f"/><circle cx="70" cy="111" r="4" class="f"/><circle cx="100" cy="111" r="4" class="f"/><circle cx="130" cy="111" r="4" class="f"/>`,
+  bush: `<path d="M100 132 V96 M100 110 L80 92 M100 104 L124 86 M100 120 L70 112 M100 118 L134 110"/><path d="M60 100 Q40 80 62 66 Q60 42 86 46 Q96 26 118 40 Q144 34 142 60 Q164 72 146 98 Q120 112 100 104 Q78 114 60 100 Z"/><path d="M86 74 C 92 60 88 52 96 40 C 100 54 110 58 104 76 C 112 70 114 62 118 56 C 124 72 118 86 104 92 C 92 94 82 86 86 74 Z" class="fl"/>`,
+  frog: `<ellipse cx="100" cy="88" rx="44" ry="30"/><circle cx="78" cy="56" r="12"/><circle cx="122" cy="56" r="12"/><circle cx="78" cy="56" r="4" class="f"/><circle cx="122" cy="56" r="4" class="f"/><path d="M78 92 Q100 106 122 92"/><path d="M60 110 L40 128 H60 M140 110 L160 128 H140 M62 82 L36 92 M138 82 L164 92"/>`,
+  matzah: `<rect x="44" y="34" width="112" height="84" rx="8"/>${[48, 62, 76, 90, 104].map((y) => `<path d="M54 ${y} H146" stroke-dasharray="2 7"/>`).join("")}<path d="M44 54 l6 4 -6 4 M156 84 l-6 4 6 4"/>`,
+  sea: `<path d="M14 130 V26 Q34 16 54 28 Q66 52 60 76 Q72 100 66 130 Z" class="wv"/><path d="M186 130 V26 Q166 16 146 28 Q134 52 140 76 Q128 100 134 130 Z" class="wv"/>
+    <path d="M24 50 q8 -6 16 0 q8 6 16 0 M22 80 q8 -6 16 0 q8 6 16 0 M24 108 q8 -6 16 0 q8 6 16 0 M144 50 q8 -6 16 0 q8 6 16 0 M146 80 q8 -6 16 0 q8 6 16 0 M144 108 q8 -6 16 0 q8 6 16 0" class="w"/>
+    <path d="M76 130 C 90 100 110 80 100 40" stroke-dasharray="5 7"/>`,
+  luchos: `<g transform="translate(46 18)"><path d="M0 110 V 32 a 26 26 0 0 1 52 0 V 110 Z M 56 110 V 32 a 26 26 0 0 1 52 0 V 110 Z"/>${[46, 62, 78, 94].map((y) => `<path d="M10 ${y}h32M66 ${y}h32"/>`).join("")}</g>`,
+  scales: `<path d="M100 20 V122 M70 122 H130 M40 40 H160"/><circle cx="100" cy="20" r="5" class="f"/><path d="M40 40 L20 84 M40 40 L60 84 M160 40 L140 84 M160 40 L180 84"/><path d="M16 84 H64 Q40 106 16 84 Z M136 84 H184 Q160 106 136 84 Z"/>`,
+  aron: `<rect x="50" y="70" width="100" height="54" rx="3"/><path d="M44 70 H156"/><path d="M70 70 C 50 50 46 30 66 24 C 70 40 84 50 96 60 M130 70 C 150 50 154 30 134 24 C 130 40 116 50 104 60"/><path d="M36 98 H164" stroke-dasharray="6 4"/>`,
+  menorah7: `${[24, 48, 72].map((r) => `<path d="M${100 - r} 40 A ${r} ${r * 1.15} 0 0 0 ${100 + r} 40"/>`).join("")}<path d="M100 40 V120 M76 128 Q100 112 124 128 Z"/>${[-72, -48, -24, 0, 24, 48, 72].map((d) => `<path d="M${100 + d} 30 C ${104 + d} 22 ${102 + d} 18 ${100 + d} 12 C ${98 + d} 18 ${96 + d} 22 ${100 + d} 30 Z" class="fl"/>`).join("")}`,
+  mishkan: `<path d="M30 120 V56 H170 V120"/>${[44, 58, 72, 86, 100, 114, 128, 142, 156].map((x) => `<path d="M${x} 56 V120"/>`).join("")}<path d="M24 56 L100 30 L176 56"/><path d="M16 120 H184"/><path d="M100 30 V12 M92 18 C 96 10 104 10 108 18" class="fl"/>`,
+  altar: `<path d="M50 70 H150 V124 H50 Z"/><path d="M50 70 V58 H62 V70 M138 70 V58 H150 V70"/><path d="M50 92 H150"/><path d="M76 66 C 70 46 84 40 82 22 C 96 34 92 48 100 52 C 102 40 110 36 112 26 C 124 42 128 58 120 66 Z" class="fl"/>`,
+  dove: `<path d="M40 86 Q70 54 112 64 Q130 40 152 46 Q140 52 140 64 Q170 74 176 96 Q140 96 120 90 Q96 108 60 104 Q44 100 40 86 Z"/><path d="M112 64 Q100 30 70 24 Q86 52 94 66"/><circle cx="148" cy="56" r="3" class="f"/><path d="M152 46 L166 42 L154 52"/><path d="M168 70 q6 -10 16 -10 M174 78 q8 -6 16 -2"/>`,
+  incense: `<path d="M64 96 H136 L124 124 H76 Z"/><path d="M60 96 H140"/><path d="M84 92 C 70 74 96 64 84 46 C 74 32 92 22 86 10 M100 92 C 90 70 116 64 106 44 C 98 30 114 22 110 10 M116 92 C 106 76 128 70 120 52"/>`,
+  mountain: `<path d="M10 124 L70 44 L96 72 L120 36 L190 124 Z"/><path d="M70 44 L60 62 L72 58 L80 66 M120 36 L110 54 L122 50 L132 58"/><path d="M84 18 L96 30 M120 12 V24 M150 20 L140 30"/>`,
+  tree: `<path d="M100 128 V80 M100 98 L80 84 M100 92 L120 76"/><circle cx="100" cy="56" r="40"/><circle cx="80" cy="50" r="6" class="f"/><circle cx="114" cy="40" r="6" class="f"/><circle cx="118" cy="66" r="6" class="f"/><circle cx="86" cy="72" r="6" class="f"/><circle cx="100" cy="30" r="5" class="f"/><path d="M60 128 H140"/>`,
+  flags: [[36, "c1"], [76, "c2"], [116, "c3"], [156, "c4"]].map(([x, c]) => `<path d="M${x} 130 V24"/><path d="M${x} 26 H${x + 30} L${x + 22} 40 L${x + 30} 54 H${x} Z" class="${c}"/>`).join(""),
+  grapes: `<path d="M20 30 H180"/><path d="M100 30 V44"/>${[[100, 54], [86, 62], [114, 62], [72, 72], [100, 72], [128, 72], [86, 84], [114, 84], [100, 96], [72, 92], [128, 92], [86, 106], [114, 106], [100, 118]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="10" class="g"/>`).join("")}<path d="M100 44 q22 -6 30 -24"/>`,
+  staff: `<path d="M100 132 V20"/><path d="M100 50 l-18 -12 M100 70 l20 -14 M100 90 l-18 -12 M100 34 l14 -12"/>${[[80, 36], [122, 54], [80, 76], [116, 20]].map(([x, y]) => `<g transform="translate(${x} ${y})">${[0, 72, 144, 216, 288].map((a) => `<ellipse cx="${(6 * Math.cos(a * Math.PI / 180)).toFixed(1)}" cy="${(6 * Math.sin(a * Math.PI / 180)).toFixed(1)}" rx="5" ry="3.5" transform="rotate(${a} ${(6 * Math.cos(a * Math.PI / 180)).toFixed(1)} ${(6 * Math.sin(a * Math.PI / 180)).toFixed(1)})" class="pk"/>`).join("")}</g>`).join("")}<ellipse cx="118" cy="98" rx="6" ry="9" class="f"/>`,
+  rock: `<path d="M30 90 Q26 50 60 40 Q90 20 120 36 Q160 34 168 70 Q176 96 150 104 H50 Q32 104 30 90 Z"/><path d="M70 56 L84 70 M120 50 L110 66"/><path d="M118 104 Q116 116 104 122 Q90 128 70 126 Q40 124 26 132 M128 104 Q134 120 160 124 Q176 126 190 132" class="w"/>`,
+  torah: `<rect x="40" y="18" width="24" height="112" rx="10"/><rect x="136" y="18" width="24" height="112" rx="10"/><circle cx="52" cy="12" r="8" class="f"/><circle cx="148" cy="12" r="8" class="f"/><rect x="64" y="28" width="72" height="92"/>${[42, 56, 70, 84, 98].map((y) => `<path d="M72 ${y}h22M106 ${y}h22" stroke-dasharray="5 3"/>`).join("")}`,
+  nest: `<path d="M44 92 Q100 140 156 92"/><path d="M40 92 H160 M48 100 Q100 124 152 100 M58 110 Q100 128 142 110"/><ellipse cx="84" cy="86" rx="10" ry="13"/><ellipse cx="104" cy="84" rx="10" ry="13"/><ellipse cx="124" cy="86" rx="10" ry="13"/><g transform="translate(78 4) scale(.5)"><path d="M40 86 Q70 54 112 64 Q130 40 152 46 Q140 52 140 64 Q170 74 176 96 Q140 96 120 90 Q96 108 60 104 Q44 100 40 86 Z"/><path d="M112 64 Q100 30 70 24 Q86 52 94 66"/><circle cx="148" cy="56" r="4" class="f"/></g>`,
+  basket: `<path d="M40 74 H160 L146 126 H54 Z"/><path d="M46 92 H154 M50 108 H150 M70 74 L66 126 M100 74 V126 M130 74 L134 126"/><path d="M60 74 Q100 20 140 74"/><circle cx="78" cy="64" r="12" class="pm"/><circle cx="104" cy="58" r="12" class="g"/><circle cx="126" cy="66" r="11" class="f"/>`,
+  path: `<path d="M20 122 C 60 122 50 90 90 90 S 120 60 150 60 S 170 30 186 26" stroke-dasharray="6 6"/>${[[30, 118], [92, 86], [150, 56]].map(([x, y]) => `<path d="M${x - 12} ${y} L${x} ${y - 18} L${x + 12} ${y} Z"/>`).join("")}<circle cx="186" cy="24" r="6" class="f"/>`,
+  pomegranate: `<path d="M100 40 C 52 40 40 90 64 116 C 82 134 118 134 136 116 C 160 90 148 40 100 40 Z" class="pm"/><path d="M86 42 L90 24 L98 34 L104 22 L110 34 L116 26 L114 42"/><path d="M76 82 Q86 72 96 80"/>`,
+};
+
+// Parsha -> drawing. Names are matched after dropping spaces and any vav/yud past a
+// word's first letter, so
+// spelling variants (בחקתי / בחוקותי, פנחס / פינחס) all find their entry.
+const ZDC_PARSHA_MAP = {
+  בראשית: "creation", נח: "ark", "לך לך": "stars", וירא: "tent", "חיי שרה": "well", תולדות: "well", ויצא: "ladder",
+  וישלח: "tent", וישב: "coat", מקץ: "sheaves", ויגש: "wagon", ויחי: "crown", שמות: "bush", וארא: "frog", בא: "matzah",
+  בשלח: "sea", יתרו: "luchos", משפטים: "scales", תרומה: "aron", תצוה: "menorah7", "כי תשא": "luchos", ויקהל: "mishkan",
+  פקודי: "mishkan", ויקרא: "altar", צו: "altar", שמיני: "altar", תזריע: "dove", מצורע: "dove", "אחרי מות": "incense",
+  קדושים: "sheaves", אמור: "sheaves", בהר: "mountain", בחקתי: "tree", במדבר: "flags", נשא: "wagon", בהעלתך: "menorah7",
+  שלח: "grapes", קרח: "staff", חקת: "rock", בלק: "tent", פנחס: "altar", מטות: "path", מסעי: "path", דברים: "torah",
+  ואתחנן: "luchos", עקב: "pomegranate", ראה: "mountain", שפטים: "scales", "כי תצא": "nest", "כי תבוא": "basket",
+  נצבים: "torah", וילך: "torah", האזינו: "creation", "וזאת הברכה": "torah",
+};
+const zdcParshaKey = (s) => String(s).replace(/[^א-ת ]/g, "").split(/\s+/)
+  .map((w) => w.slice(0, 1) + w.slice(1).replace(/[וי]/g, "")).join("")
+  .replace(/ך/g, "כ").replace(/ם/g, "מ").replace(/ן/g, "נ").replace(/ף/g, "פ").replace(/ץ/g, "צ");
+const ZDC_PARSHA_BY_KEY = Object.fromEntries(Object.entries(ZDC_PARSHA_MAP).map(([k, v]) => [zdcParshaKey(k), v]));
 
 // Deterministic pseudo-random numbers so a theme's layout is stable between renders.
 function zdcRand(seed) {
@@ -504,6 +565,7 @@ class ZmanDisplayCard extends HTMLElement {
           <div class="layer day"></div><div class="layer dusk"></div>
           <div class="layer candle"></div>
           <div class="theme" id="theme"></div>
+          <div class="pmotif" id="pmotif"></div>
           <div class="stars">${stars}<b class="shoot"></b></div>
           <div class="haze"></div>
         </div>
@@ -531,6 +593,7 @@ class ZmanDisplayCard extends HTMLElement {
       chiprow: root.getElementById("chiprow"),
       main: root.getElementById("main"),
       theme: root.getElementById("theme"),
+      pmotif: root.getElementById("pmotif"),
       foot: root.getElementById("foot"),
     };
     this._html = {};
@@ -625,9 +688,12 @@ class ZmanDisplayCard extends HTMLElement {
       this._set("theme", th ? zdcThemeHtml(th.theme, th.day) : "");
       ["--a1", "--a2", "--a3"].forEach((v, i) => (th ? this._el.stage.style.setProperty(v, th.theme.acc[i]) : this._el.stage.style.removeProperty(v)));
     }
+    // No holiday theme: a small drawing for this week's parsha instead.
+    const art = th ? "" : ZDC_PARSHA_BY_KEY[zdcParshaKey(this._parsha().split(/[-–/]| ו(?=[\u05d0-\u05ea])/)[0])] || "";
+    this._set("pmotif", art ? `<svg viewBox="0 0 200 140" class="pm-${art}">${ZDC_PARSHA_ART[art]}</svg>` : "");
     this._el.gdate.textContent = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
-    this._set("hebrew", this._hebrewHtml(now));
+    this._set("hebrew", this._hebrewHtml(now, shabbos));
     const alerts = this._alertsHtml();
     const pills = this._pillsHtml();
     this._set("alerts", alerts);
@@ -697,19 +763,28 @@ class ZmanDisplayCard extends HTMLElement {
     return ["☔", `${say} · ${Math.round(f.precipitation_probability)}% רעגן ${when}`, "rain"];
   }
 
-  _hebrewHtml(now) {
+  _hebrewHtml(now, shabbos) {
     const c = this._config;
     const daf = this._val(c.daf_yomi);
+    // In Shabbos mode the candle panel's title already names the parsha; don't say it twice.
+    const name = this._shabbosName();
+    const show = name && !(shabbos && this._shabbosTitle().includes(name.replace(/^שבת\s+/, "")));
     return `
       <div class="hdate">${esc(this._val(c.hebrew_date))}</div>
-      ${this._shabbosName() ? `<div class="hparsha">${esc(this._shabbosName())}</div>` : ""}
+      ${show ? `<div class="hparsha">${esc(name)}</div>` : ""}
       <div class="hday">${ZDC_HEB_DAYS[now.getDay()]}${daf ? ` <span class="dot">•</span> דף היומי <b>${esc(daf)}</b>` : ""}</div>`;
+  }
+
+  // This week's parsha, bare (YidCal already says "פרשת בראשית"; don't double it).
+  _parsha() {
+    const c = this._config;
+    return (this._val(c.parsha) || this._val(c.parsha_fallback)).replace(/^\s*פרשת\s+/, "").trim();
   }
 
   // "פרשת …" when there is one; otherwise the Yom Tov that falls on this Shabbos.
   _shabbosName() {
     const c = this._config;
-    const parsha = this._val(c.parsha) || this._val(c.parsha_fallback);
+    const parsha = this._parsha();
     if (parsha) return `פרשת ${parsha}`;
     if (!this._on(c.upcoming_yomtov) && !this._val(c.holiday)) return "";
     const yt = this._val(c.holiday) || this._val(c.upcoming_holiday);
@@ -731,7 +806,7 @@ class ZmanDisplayCard extends HTMLElement {
         .find((x) => x && !x.startsWith("ערב"));
     const holiday = firstName(this._val(c.holiday));
     if (holiday) return holiday;
-    const parsha = this._val(c.parsha) || this._val(c.parsha_fallback);
+    const parsha = this._parsha();
     if (parsha) return `שבת פרשת ${parsha}`;
     const upcoming = this._on(c.upcoming_yomtov) && firstName(this._val(c.upcoming_holiday));
     return upcoming || "שבת קודש";
@@ -945,7 +1020,7 @@ class ZmanDisplayCard extends HTMLElement {
       <div class="shab" data-live>
         <div class="shab-hero">
           <svg viewBox="0 0 300 230" class="candles">${flame(95)}${flame(205)}</svg>
-          <div class="stitle">${esc(title)}</div>
+          <div class="stitle${title.length > 9 ? " long" : ""}">${esc(title)}</div>
           <div class="stimes">
             <div class="st"><span>🕯️ הדלקת נרות</span><b>${fmtTime(erev)}</b><small>${erev ? ZDC_HEB_DAYS[erev.getDay()] : ""}</small></div>
             ${shkia ? `<div class="st sk"><span>🌇 שקיעה</span><b>${fmtTime(shkia)}</b><small>${ZDC_HEB_DAYS[shkia.getDay()]}</small></div>` : ""}
@@ -1114,7 +1189,7 @@ const ZDC_STYLE = `
 :host { display:block; position:relative; overflow:hidden; }
 .stage { --a1:#fff3d6; --a2:#ffc46b; --a3:#ff9a5a; position:absolute; top:0; left:0; overflow:hidden; transform-origin:0 0; color:#f7f1e6;
   font-family:'Rubik', 'Heebo', system-ui, sans-serif; border-radius:var(--ha-card-border-radius, 0); }
-.sky, .layer, .stars, .haze { position:absolute; inset:0; }
+.sky, .layer, .stars, .haze, .pmotif { position:absolute; inset:0; }
 .layer { opacity:0; transition:opacity 20s ease; }
 .night { background:radial-gradient(120% 90% at 50% 110%, #1c2150 0%, #0b0f2a 55%, #04060f 100%); }
 .dawn { background:linear-gradient(180deg, #1b1d4d 0%, #5b3a78 40%, #d9737a 75%, #ffb36b 100%); }
@@ -1247,6 +1322,7 @@ main > * { flex:none; }
 .shab.many { grid-template-columns:minmax(220px, .48fr) 2.6fr; gap:14px; }
 .shab.many .candles { width:min(120px, 45%); }
 .shab.many .stitle { font-size:60px; }
+.stitle.long { font-size:56px; } .shab.many .stitle.long { font-size:44px; }
 /* Narrow side panel: candle lighting and motzei side by side, shkia as a slim row under them. */
 .shab.many .stimes { grid-auto-flow:row; grid-template-columns:repeat(2, minmax(0, 1fr)); }
 .shab.many .st.sk { order:1; grid-column:1 / -1; flex-direction:row; justify-content:center; align-items:baseline; gap:8px; padding:4px 8px; }
@@ -1392,6 +1468,18 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .themed .mark text { paint-order:stroke; stroke:rgba(0,0,0,.75); stroke-width:5px; stroke-linejoin:round; }
 .themed .mark.past text { opacity:.7; }
 .shabbos .tmotif { display:none; }
+/* Parsha drawing: small, faint gold line art centred between the clock and the date. */
+.pmotif { display:flex; justify-content:center; align-items:flex-start; padding-top:1.6%; pointer-events:none; }
+.pmotif svg { width:14%; height:auto; opacity:.42; fill:none; stroke:#ffd27a; stroke-width:3; stroke-linecap:round; stroke-linejoin:round;
+  filter:drop-shadow(0 0 14px rgba(255,200,110,.35)); }
+.shabbos .pmotif { padding-top:1%; } .shabbos .pmotif svg { width:9%; }
+.portrait .pmotif svg { width:22%; opacity:.3; }
+.pmotif .f { fill:#ffd27a; stroke:none; } .pmotif .fl { fill:#ffb347; stroke:#ffd27a; stroke-width:2; }
+.pmotif .g { fill:#7b3f8c; stroke:#c79ad6; stroke-width:2; } .pmotif .pm { fill:#b3123a; stroke:#ff8aa0; stroke-width:2; }
+.pmotif .pk { fill:#ffd6e6; stroke:none; } .pmotif .w { stroke:#8fd3ff; } .pmotif .wv { fill:rgba(70,140,230,.45); stroke:#8fd3ff; }
+.pmotif .rb1 { stroke:#ff7b7b; } .pmotif .rb2 { stroke:#8fd3ff; }
+.pmotif .c1 { stroke:#e57373; fill:#e57373; } .pmotif .c2 { stroke:#64b5f6; fill:#64b5f6; } .pmotif .c3 { stroke:#81c784; fill:#81c784; } .pmotif .c4 { stroke:#ffd54f; fill:#ffd54f; }
+.pmotif .pm-coat .c1, .pmotif .pm-coat .c2, .pmotif .pm-coat .c3 { fill:none; stroke-width:6; }
 
 /* The clock and Hebrew date sit on a dark backing on holiday backgrounds, and the
    Hebrew date is solid (not gradient) and larger in the compact Shabbos header. */
