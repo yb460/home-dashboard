@@ -688,7 +688,7 @@ class ZmanDisplayCard extends HTMLElement {
       ["--a1", "--a2", "--a3"].forEach((v, i) => (th ? this._el.stage.style.setProperty(v, th.theme.acc[i]) : this._el.stage.style.removeProperty(v)));
     }
     // No holiday theme: a small drawing for this week's parsha instead.
-    const art = th ? "" : ZDC_PARSHA_BY_KEY[zdcParshaKey(this._parsha().split(/[-–/]| ו(?=[\u05d0-\u05ea])/)[0])] || "";
+    const art = th ? "" : ZDC_PARSHA_BY_KEY[zdcParshaKey(this._parsha().split(/[-–/]| ו(?=[א-ת])/)[0])] || "";
     this._set("pmotif", art ? `<svg viewBox="0 0 200 140" class="pm-${art}">${ZDC_PARSHA_ART[art]}</svg>` : "");
     this._el.gdate.textContent = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
