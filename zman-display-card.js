@@ -247,8 +247,7 @@ const ZDC_PARSHA_ART = {
 };
 
 // Parsha -> drawing. Names are matched after dropping spaces and any vav/yud past a
-// word's first letter, so
-// spelling variants (בחקתי / בחוקותי, פנחס / פינחס) all find their entry.
+// word's first letter, so spelling variants (בחקתי / בחוקותי, פנחס / פינחס) all match.
 const ZDC_PARSHA_MAP = {
   בראשית: "creation", נח: "ark", "לך לך": "stars", וירא: "tent", "חיי שרה": "well", תולדות: "well", ויצא: "ladder",
   וישלח: "tent", וישב: "coat", מקץ: "sheaves", ויגש: "wagon", ויחי: "crown", שמות: "bush", וארא: "frog", בא: "matzah",
