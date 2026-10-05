@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.7";
+const ZDC_VERSION = "0.9.8";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -1467,12 +1467,13 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .themed .mark text { paint-order:stroke; stroke:rgba(0,0,0,.75); stroke-width:5px; stroke-linejoin:round; }
 .themed .mark.past text { opacity:.7; }
 .shabbos .tmotif { display:none; }
-/* Parsha drawing: small, faint gold line art centred between the clock and the date. */
-.pmotif { display:flex; justify-content:center; align-items:flex-start; padding-top:1.6%; pointer-events:none; }
-.pmotif svg { width:14%; height:auto; opacity:.42; fill:none; stroke:#ffd27a; stroke-width:3; stroke-linecap:round; stroke-linejoin:round;
-  filter:drop-shadow(0 0 14px rgba(255,200,110,.35)); }
-.shabbos .pmotif { padding-top:1%; } .shabbos .pmotif svg { width:9%; }
-.portrait .pmotif svg { width:22%; opacity:.3; }
+/* Parsha drawing: gold line art centred between the clock and the date, with a dark
+   outline so it stands out on the bright daytime sky as well as at night. */
+.pmotif { display:flex; justify-content:center; align-items:flex-start; padding-top:1.2%; pointer-events:none; }
+.pmotif svg { width:19%; height:auto; opacity:.95; fill:none; stroke:#ffd27a; stroke-width:3.5; stroke-linecap:round; stroke-linejoin:round;
+  filter:drop-shadow(0 0 2px rgba(0,0,0,.9)) drop-shadow(0 2px 6px rgba(0,0,0,.6)) drop-shadow(0 0 18px rgba(255,200,110,.4)); }
+.shabbos .pmotif { padding-top:.8%; } .shabbos .pmotif svg { width:11%; }
+.portrait .pmotif svg { width:26%; opacity:.8; }
 .pmotif .f { fill:#ffd27a; stroke:none; } .pmotif .fl { fill:#ffb347; stroke:#ffd27a; stroke-width:2; }
 .pmotif .g { fill:#7b3f8c; stroke:#c79ad6; stroke-width:2; } .pmotif .pm { fill:#b3123a; stroke:#ff8aa0; stroke-width:2; }
 .pmotif .pk { fill:#ffd6e6; stroke:none; } .pmotif .w { stroke:#8fd3ff; } .pmotif .wv { fill:rgba(70,140,230,.45); stroke:#8fd3ff; }
