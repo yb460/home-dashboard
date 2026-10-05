@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.9.8";
+const ZDC_VERSION = "0.9.9";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -689,7 +689,8 @@ class ZmanDisplayCard extends HTMLElement {
     }
     // No holiday theme: a small drawing for this week's parsha instead.
     const art = th ? "" : ZDC_PARSHA_BY_KEY[zdcParshaKey(this._parsha().split(/[-–/]| ו(?=[א-ת])/)[0])] || "";
-    this._set("pmotif", art ? `<svg viewBox="0 0 200 140" class="pm-${art}">${ZDC_PARSHA_ART[art]}</svg>` : "");
+    const artSvg = (cls) => `<svg viewBox="0 0 200 140" class="pm-${art} ${cls}">${ZDC_PARSHA_ART[art]}</svg>`;
+    this._set("pmotif", art ? artSvg("top") + artSvg("big") : "");
     this._el.gdate.textContent = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
     this._set("hebrew", this._hebrewHtml(now, shabbos));
@@ -1474,6 +1475,10 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
   filter:drop-shadow(0 0 2px rgba(0,0,0,.9)) drop-shadow(0 2px 6px rgba(0,0,0,.6)) drop-shadow(0 0 18px rgba(255,200,110,.4)); }
 .shabbos .pmotif { padding-top:.8%; } .shabbos .pmotif svg { width:11%; }
 .portrait .pmotif svg { width:26%; opacity:.8; }
+/* The same drawing, large and faint, fills the sky behind the day arc as a background. */
+.pmotif svg.big { position:absolute; left:50%; top:22%; width:62%; transform:translateX(-50%); opacity:.2; stroke-width:2.2;
+  filter:drop-shadow(0 0 24px rgba(255,200,110,.35)); }
+.shabbos .pmotif svg.big { display:none; } .portrait .pmotif svg.big { width:90%; top:30%; }
 .pmotif .f { fill:#ffd27a; stroke:none; } .pmotif .fl { fill:#ffb347; stroke:#ffd27a; stroke-width:2; }
 .pmotif .g { fill:#7b3f8c; stroke:#c79ad6; stroke-width:2; } .pmotif .pm { fill:#b3123a; stroke:#ff8aa0; stroke-width:2; }
 .pmotif .pk { fill:#ffd6e6; stroke:none; } .pmotif .w { stroke:#8fd3ff; } .pmotif .wv { fill:rgba(70,140,230,.45); stroke:#8fd3ff; }
