@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.10.3";
+const ZDC_VERSION = "0.10.2";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -1254,7 +1254,7 @@ class ZmanDisplayCard extends HTMLElement {
 const ZDC_STYLE = `
 :host { display:block; position:relative; overflow:hidden; }
 .stage { --a1:#fff3d6; --a2:#ffc46b; --a3:#ff9a5a; position:absolute; top:0; left:0; overflow:hidden; transform-origin:0 0; color:#f7f1e6;
-  font-family:'ZDC Rubik', 'Rubik', 'Heebo', system-ui, sans-serif; border-radius:var(--ha-card-border-radius, 0); }
+  font-family:'Rubik', 'Heebo', system-ui, sans-serif; border-radius:var(--ha-card-border-radius, 0); }
 .sky, .layer, .stars, .haze, .pmotif { position:absolute; inset:0; }
 .layer { opacity:0; transition:opacity 20s ease; }
 .night { background:radial-gradient(120% 90% at 50% 110%, #1c2150 0%, #0b0f2a 55%, #04060f 100%); }
@@ -1276,14 +1276,14 @@ const ZDC_STYLE = `
 
 .content { position:relative; z-index:1; display:flex; flex-direction:column; gap:12px; padding:30px 34px; height:100%; box-sizing:border-box; }
 header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; }
-.hm { font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-weight:700; font-size:196px; line-height:.9; letter-spacing:-4px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
+.hm { font-family:'Outfit', 'Rubik', sans-serif; font-weight:700; font-size:196px; line-height:.9; letter-spacing:-4px; text-shadow:0 0 40px rgba(255,210,150,.35); font-variant-numeric:tabular-nums; }
 .ss { font-size:.3em; font-weight:600; letter-spacing:0; margin-left:10px; color:var(--a2); vertical-align:top; display:inline-block; margin-top:.35em; }
-.gdate { margin-top:8px; font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-weight:500; font-size:26px; color:rgba(247,241,230,.8); letter-spacing:.5px; }
+.gdate { margin-top:8px; font-family:'Outfit', 'Rubik', sans-serif; font-weight:500; font-size:26px; color:rgba(247,241,230,.8); letter-spacing:.5px; }
 .hebrew { direction:rtl; text-align:right; }
-.hdate { font-family:'ZDC Suez', 'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:72px; line-height:1.05;
+.hdate { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:72px; line-height:1.05;
   background:linear-gradient(180deg, var(--a1), var(--a2) 60%, var(--a3)); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 18px rgba(255,170,80,.35)); }
-.hparsha { margin-top:4px; font-family:'ZDC Suez', 'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:42px; color:#e6c7ff; text-shadow:0 0 18px rgba(200,150,255,.45); }
+.hparsha { margin-top:4px; font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:42px; color:#e6c7ff; text-shadow:0 0 18px rgba(200,150,255,.45); }
 .hday { margin-top:6px; font-size:24px; font-weight:500; color:rgba(247,241,230,.85); }
 .hday b { color:#e6c7ff; font-weight:600; } .dot { color:var(--a2); margin:0 6px; }
 /* One row of chips under the header: device and weather alerts on the left,
@@ -1333,8 +1333,8 @@ main > * { flex:none; }
 .mark.next circle { fill:#fff; stroke:#ff9a5a; stroke-width:4; animation:beat 1.6s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
 @keyframes beat { 0%,100% { transform:scale(1); } 50% { transform:scale(1.35); } }
 .mark text { text-anchor:middle; fill:#f7f1e6; }
-.lname { font-family:'ZDC Suez', 'Suez One', 'Frank Ruhl Libre', serif; font-size:21px; font-weight:400; direction:rtl; unicode-bidi:plaintext; }
-.ltime { font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-size:22px; font-weight:700; fill:#ffd27a !important; }
+.lname { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-size:21px; font-weight:400; direction:rtl; unicode-bidi:plaintext; }
+.ltime { font-family:'Outfit', 'Rubik', sans-serif; font-size:22px; font-weight:700; fill:#ffd27a !important; }
 .mark.past text { opacity:.45; }
 .mark.next .lname { fill:#fff; } .mark.next .ltime { fill:#ffb36b !important; font-weight:800; }
 .sun { transition:transform 1s linear, opacity 3s; }
@@ -1344,8 +1344,8 @@ main > * { flex:none; }
 .moon { transition:opacity 3s; opacity:0; } .moon path { fill:#fff4c9; } .moonglow { fill:#fff4c9; opacity:.35; }
 .nextbox { position:absolute; left:50%; bottom:2%; transform:translateX(-50%); text-align:center; direction:rtl; width:60%; }
 .nlabel { font-size:1.15cqw; font-weight:500; color:var(--a2); }
-.nname { font-family:'ZDC Suez', 'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:3.4cqw; line-height:1.1; }
-.ncount { direction:ltr; font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-weight:600; font-size:3cqw; letter-spacing:2px; color:#fff; text-shadow:0 0 24px rgba(255,190,110,.6); }
+.nname { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:3.4cqw; line-height:1.1; }
+.ncount { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-weight:600; font-size:3cqw; letter-spacing:2px; color:#fff; text-shadow:0 0 24px rgba(255,190,110,.6); }
 .nat { direction:ltr; color:rgba(247,241,230,.6); font-size:1.05cqw; }
 
 .shab { width:100%; transform-origin:center center; max-width:none; box-sizing:border-box; display:grid; grid-template-columns:minmax(300px, 0.75fr) 1.9fr; gap:28px; align-items:center; direction:rtl; }
@@ -1357,32 +1357,32 @@ main > * { flex:none; }
 .wick { fill:#3a2a1a; } .wax { fill:#f5ecdc; } .holder { fill:#c9a24a; }
 @keyframes flicker { 0% { transform:scale(1,1) skewX(0deg); } 30% { transform:scale(.96,1.06) skewX(2deg); } 60% { transform:scale(1.03,.95) skewX(-2deg); } 100% { transform:scale(.98,1.04) skewX(1deg); } }
 @keyframes halo { 0%,100% { opacity:.7; transform:scale(1); } 50% { opacity:1; transform:scale(1.12); } }
-.stitle { font-family:'ZDC Suez', 'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:74px; line-height:1.05; margin-top:6px;
+.stitle { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:74px; line-height:1.05; margin-top:6px;
   background:linear-gradient(180deg, var(--a1), var(--a2) 55%, var(--a3)); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 22px rgba(255,160,60,.45)); }
 .stimes { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:10px; margin-top:18px; align-items:center; }
 .stimes:has(.sk) { grid-template-columns:1fr .72fr 1fr; }
 .st { padding:12px 6px; border-radius:22px; background:rgba(40,24,10,.75); border:1px solid rgba(255,190,110,.35); display:flex; flex-direction:column; gap:2px; }
 .st span { font-size:19px; white-space:nowrap; color:rgba(255,236,210,.85); }
-.st b { direction:ltr; font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-size:50px; letter-spacing:-1px; font-weight:700; color:#fff3e0; line-height:1.05; }
+.st b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-size:50px; letter-spacing:-1px; font-weight:700; color:#fff3e0; line-height:1.05; }
 .st small { color:rgba(255,236,210,.6); font-size:16px; }
 .st.sk { padding:8px 4px; background:rgba(40,24,10,.55); }
 .st.sk span { font-size:15px; } .st.sk b { font-size:32px; } .st.sk small { font-size:13px; }
 .scd { margin-top:14px; max-width:100%; box-sizing:border-box; flex-wrap:wrap; justify-content:center; display:inline-flex; align-items:baseline; column-gap:10px; padding:8px 18px; border-radius:999px;
   background:linear-gradient(90deg, rgba(255,180,90,.25), rgba(255,120,80,.15)); border:1px solid rgba(255,180,90,.5); box-shadow:0 0 30px rgba(255,150,70,.3); }
 .scd span { color:#ffd9a8; font-size:18px; white-space:nowrap; }
-.scd b { direction:ltr; font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-size:32px; font-weight:700; color:#fff; white-space:nowrap; }
+.scd b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-size:32px; font-weight:700; color:#fff; white-space:nowrap; }
 /* One column per day of the schedule (up to 4 across), sharing the full width. */
 /* Tight, high-contrast cards: solid backgrounds (nothing shows through), little padding,
    so the schedule can be drawn larger and stays crisp even with 3-4 days. */
 .sched { display:grid; grid-template-columns:repeat(var(--days, 2), minmax(0, 1fr)); gap:8px; align-items:start; }
 .sday { overflow:hidden; border-radius:16px; background:#170e06; border:1.5px solid rgba(255,190,110,.5); }
-.sday h3 { margin:0; padding:5px 12px 4px; font-family:'ZDC Suez', 'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:25px; color:var(--a2);
+.sday h3 { margin:0; padding:5px 12px 4px; font-family:'Suez One', 'Frank Ruhl Libre', serif; font-weight:400; font-size:25px; color:var(--a2);
   background:rgba(255,190,110,.14); border-bottom:1.5px solid rgba(255,190,110,.45); }
 .srow { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:baseline; column-gap:10px; padding:4px 12px; }
 .srow + .srow { border-top:1px solid rgba(255,255,255,.12); }
 .sname { font-size:20px; font-weight:700; color:#fff; line-height:1.2; }
-.stime { font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-weight:700; font-variant-numeric:tabular-nums; color:#ffd27a; font-size:22px; white-space:nowrap; unicode-bidi:plaintext; }
+.stime { font-family:'Outfit', 'Rubik', sans-serif; font-weight:700; font-variant-numeric:tabular-nums; color:#ffd27a; font-size:22px; white-space:nowrap; unicode-bidi:plaintext; }
 .snotes { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:0 10px; font-size:16px; line-height:1.25; color:#e9d9c2; }
 .snotes span + span::before { content:"•"; color:var(--a2); margin-inline-end:10px; }
 .shab.many { grid-template-columns:minmax(220px, .48fr) 2.6fr; gap:14px; }
@@ -1439,7 +1439,7 @@ main > * { flex:none; }
 .whilo { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:22px; }
 .whilo span:first-child { color:#ffb36b; } .whilo span:last-child { color:#8fd3ff; }
 .wnow ha-icon { --mdc-icon-size:64px; color:#ffd27a; filter:drop-shadow(0 0 12px rgba(255,200,110,.5)); }
-.wtemp { font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-size:58px; font-weight:600; line-height:1; }
+.wtemp { font-family:'Outfit', 'Rubik', sans-serif; font-size:58px; font-weight:600; line-height:1; }
 .wcond { text-transform:capitalize; color:rgba(247,241,230,.7); font-size:17px; }
 .hours { display:grid; grid-template-columns:repeat(auto-fit, minmax(42px, 1fr)); margin-top:12px; gap:2px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,.08); }
 .hr { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:14px; }
@@ -1454,7 +1454,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .rooms { display:flex; flex-wrap:wrap; gap:10px; align-content:stretch; }
 .room { box-sizing:border-box; flex:1 1 calc(100% / var(--cols, 4) - 10px); min-width:60px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:10px 4px; border-radius:18px; background:rgba(255,255,255,.04); border:1px solid transparent; }
 .room span { font-size:14px; text-transform:uppercase; letter-spacing:1px; color:rgba(247,241,230,.6); }
-.room b { font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-size:38px; font-weight:700; line-height:1.05; }
+.room b { font-family:'Outfit', 'Rubik', sans-serif; font-size:38px; font-weight:700; line-height:1.05; }
 .room small { font-size:14px; color:rgba(247,241,230,.5); }
 .room ha-icon { --mdc-icon-size:29px; }
 .room.cold { border-color:rgba(100,200,255,.4); } .room.cold ha-icon { color:#7fd0ff; }
@@ -1477,7 +1477,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .rname { font-weight:600; font-size:18px; color:#ffd0c8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rnow { display:flex; align-items:center; gap:6px; }
 .rnow ha-icon { --mdc-icon-size:34px; color:#cfe3ff; }
-.rnow b { font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-size:40px; font-weight:700; line-height:1.05; }
+.rnow b { font-family:'Outfit', 'Rubik', sans-serif; font-size:40px; font-weight:700; line-height:1.05; }
 .rhl { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:17px; line-height:1.15; }
 .rhi { color:#ffb36b; font-weight:600; } .rlo { color:#8fd3ff; }
 .rdays { display:grid; grid-template-columns:repeat(var(--rn, 5), minmax(0, 1fr)); gap:1px; margin-top:4px; }
@@ -1493,7 +1493,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .shabbos .has-cities .room b { font-size:24px; } .shabbos .has-cities .room span { font-size:12px; }
 .shabbos .city ha-icon { display:inline-flex !important; }
 .ev { display:flex; align-items:center; gap:14px; }
-.evn { min-width:62px; text-align:center; font-family:'Outfit', 'ZDC Rubik', 'Rubik', sans-serif; font-size:28px; font-weight:800; line-height:1; }
+.evn { min-width:62px; text-align:center; font-family:'Outfit', 'Rubik', sans-serif; font-size:28px; font-weight:800; line-height:1; }
 .evn small { display:block; font-size:10px; letter-spacing:2px; font-weight:500; color:rgba(247,241,230,.55); margin-top:3px; }
 .evt { display:flex; flex-direction:column; } .evt b { font-weight:500; font-size:18px; } .evt small { color:rgba(247,241,230,.55); font-size:12px; }
 .ev.c0 .evn { color:#ff9ec7; text-shadow:0 0 14px rgba(255,150,200,.5); } .ev.c1 .evn { color:#8fe9ff; text-shadow:0 0 14px rgba(140,230,255,.5); }
