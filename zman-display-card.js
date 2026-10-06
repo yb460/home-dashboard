@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.10.1";
+const ZDC_VERSION = "0.10.2";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -80,6 +80,26 @@ const ZDC_WEATHER_ICONS = {
 const ZDC_BAD = new Set(["", "unknown", "unavailable", "none", "None"]);
 
 const ZDC_SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Holidays for the "days until" chip, by Hebrew month (Intl's names) and day.
+const ZDC_HOLIDAYS = [
+  ["Tishri", 1, "ראש השנה"], ["Tishri", 10, "יום כיפור"], ["Tishri", 15, "סוכות"], ["Tishri", 22, "שמיני עצרת"],
+  ["Kislev", 25, "חנוכה"], ["Shevat", 15, "ט״ו בשבט"], ["Adar", 14, "פורים"], ["Adar II", 14, "פורים"],
+  ["Nisan", 15, "פסח"], ["Iyar", 18, "ל״ג בעומר"], ["Sivan", 6, "שבועות"],
+];
+// The next holiday after today: { name, days } (days counted in calendar days, 1 = tomorrow).
+const zdcNextHoliday = (now) => {
+  let fmt;
+  try { fmt = new Intl.DateTimeFormat("en-u-ca-hebrew", { month: "long", day: "numeric" }); } catch (e) { return null; }
+  for (let i = 1; i <= 400; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, 12);
+    const parts = fmt.formatToParts(d);
+    const m = parts.find((p) => p.type === "month")?.value;
+    const day = Number(parts.find((p) => p.type === "day")?.value);
+    const h = ZDC_HOLIDAYS.find(([hm, hd]) => hm === m && hd === day);
+    if (h) return { name: h[2], days: i };
+  }
+  return null;
+};
 
 // ---------------------------------------------------------------- holiday themes
 // Small SVG symbols (viewBox 0 0 40 40) for the floating decorations. "currentColor"
@@ -744,6 +764,13 @@ class ZmanDisplayCard extends HTMLElement {
     // Today's holiday and what's coming up share one chip.
     if (holiday) pills.push(["✨", upcoming ? `${holiday} · בקרוב: ${upcoming}` : holiday, "gold"]);
     else if (upcoming) pills.push(["⏳", `בקרוב: ${upcoming}`, "mint"]);
+    // Otherwise, how many days until the next holiday (config `holiday_countdown: false` hides it).
+    if (!upcoming && c.holiday_countdown !== false) {
+      const key = new Date().toDateString();
+      if (this._hcKey !== key) { this._hcKey = key; this._hc = zdcNextHoliday(new Date()); }
+      const h = this._hc;
+      if (h) pills.push(["📅", h.days === 1 ? `${h.name} מחר` : `עוד ${h.days} ימים ל${h.name}`, "mint"]);
+    }
     if (this._on(c.rosh_chodesh)) pills.push(["🌒", "ראש חודש", "sky"]);
     if (this._on(c.shabbos_mevorchim)) pills.push(["🌙", "שבת מברכים", "sky"]);
     if (this._on(c.kiddush_levana)) pills.push(["🌕", "קידוש לבנה", "moon"]);
@@ -1019,8 +1046,9 @@ class ZmanDisplayCard extends HTMLElement {
     const erev = parseTime(this._val(c.candle_lighting), now);
     const motzi = parseTime(this._val(c.havdalah), now);
     const shkia = c.shkia ? parseTime(this._val(c.shkia), now) : null;
-    // Count down to candle lighting only; a countdown to the end of Shabbos doesn't belong on Shabbos.
-    const target = erev && erev > now ? ["הדלקת נרות בעוד", erev] : null;
+    // Count down to candle lighting, then to shkiah; a countdown to the end of Shabbos doesn't belong on Shabbos.
+    const target = erev && erev > now ? ["הדלקת נרות בעוד", erev]
+      : shkia && shkia > now && (!erev || shkia - erev < 6 * 3600000) ? ["שקיעה בעוד", shkia] : null;
     const days = [...(sched?.attributes?.days || [])].sort((a, b) => (a.day_order ?? 0) - (b.day_order ?? 0));
     const flame = (x) => `<g transform="translate(${x} 0)">
         <ellipse cx="0" cy="40" rx="46" ry="60" class="halo"/>
@@ -1169,12 +1197,13 @@ class ZmanDisplayCard extends HTMLElement {
     const days = this._rdaily?.[r.entity] || [];
     const today = days[0];
     const hl = (f) => `<span class="rhi">${Math.round(f.temperature)}°</span><span class="rlo">${Math.round(f.templow ?? f.temperature)}°</span>`;
-    const next = days.slice(1, 7).map((f) =>
+    const nd = days.slice(1, 6);
+    const next = nd.map((f) =>
       `<div class="rday"><small>${ZDC_SHORT_DAYS[new Date(f.datetime).getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><span class="rhi">${Math.round(f.temperature)}°</span><span class="rlo">${Math.round(f.templow ?? f.temperature)}°</span></div>`).join("");
     return `<div class="city">
       <div class="rname">${esc(r.emoji || "")} ${esc(r.name || a.friendly_name || "")}</div>
       <div class="rnow"><ha-icon icon="${icon(st.state)}"></ha-icon><b>${a.temperature != null ? Math.round(a.temperature) : "--"}°</b>${today ? `<span class="rhl">${hl(today)}</span>` : ""}</div>
-      ${next ? `<div class="rdays">${next}</div>` : ""}
+      ${next ? `<div class="rdays" style="--rn:${nd.length}">${next}</div>` : ""}
     </div>`;
   }
 
@@ -1451,7 +1480,7 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .rnow b { font-family:'Outfit', 'Rubik', sans-serif; font-size:40px; font-weight:700; line-height:1.05; }
 .rhl { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:17px; line-height:1.15; }
 .rhi { color:#ffb36b; font-weight:600; } .rlo { color:#8fd3ff; }
-.rdays { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:1px; margin-top:4px; }
+.rdays { display:grid; grid-template-columns:repeat(var(--rn, 5), minmax(0, 1fr)); gap:1px; margin-top:4px; }
 .rday { display:flex; flex-direction:column; align-items:center; font-size:15px; line-height:1.15; gap:1px; }
 .rday small { color:rgba(247,241,230,.7); font-size:12px; } .rday ha-icon { --mdc-icon-size:26px; color:#cfe3ff; } .rday .rlo { font-size:13px; }
 /* Weekday: the rooms tile is narrow but tall, so the cities stack, each with a full-width week. */
