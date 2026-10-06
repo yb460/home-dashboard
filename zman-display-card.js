@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.10.0";
+const ZDC_VERSION = "0.10.1";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -844,6 +844,8 @@ class ZmanDisplayCard extends HTMLElement {
       if (!st) return false;
       if (a.state !== undefined) return [].concat(a.state).map(String).includes(st.state);
       if (a.state_not !== undefined) return ![].concat(a.state_not).map(String).includes(st.state) && !ZDC_BAD.has(st.state);
+      // below: numeric sensors (e.g. a brush at 8% life left) show when under the limit.
+      if (a.below !== undefined) return !ZDC_BAD.has(st.state) && Number(st.state) < Number(a.below);
       return st.state === "on";
     });
     const wx = this._weatherAlerts().map((w) => `<span class="chip alert wx ${w.severe ? "red" : "amber"}"><ha-icon icon="${w.icon}"></ha-icon>${esc(w.event)}${w.until ? ` <b>until ${esc(w.until)}</b>` : ""}</span>`);
@@ -852,9 +854,11 @@ class ZmanDisplayCard extends HTMLElement {
     return wx.join("") + sk + `${items
       .map((a) => {
         const extra = a.value_entity ? this._val(a.value_entity) : a.show_state ? this._val(a.entity) : "";
-        const vs = a.value_entity ? this._state(a.value_entity) : null;
+        const vs = a.value_entity ? this._state(a.value_entity) : a.show_state ? this._state(a.entity) : null;
         const unit = vs?.attributes?.unit_of_measurement || "";
-        let value = extra ? `${extra}${unit ? " " + unit : ""}` : "";
+        // Device states like "low_water" read as "low water".
+        const pretty = /^[a-z0-9_]+$/.test(extra) && isNaN(extra) ? extra.replace(/_/g, " ") : extra;
+        let value = extra ? `${pretty}${unit ? (unit === "%" ? "" : " ") + unit : ""}` : "";
         // A timestamp (e.g. the washer's finish time) becomes a live countdown.
         const end = vs?.attributes?.device_class === "timestamp" && extra ? new Date(extra) : null;
         if (end && !isNaN(end)) {
@@ -1015,7 +1019,8 @@ class ZmanDisplayCard extends HTMLElement {
     const erev = parseTime(this._val(c.candle_lighting), now);
     const motzi = parseTime(this._val(c.havdalah), now);
     const shkia = c.shkia ? parseTime(this._val(c.shkia), now) : null;
-    const target = erev && erev > now ? ["הדלקת נרות בעוד", erev] : motzi && motzi > now ? ["מוצאי בעוד", motzi] : null;
+    // Count down to candle lighting only; a countdown to the end of Shabbos doesn't belong on Shabbos.
+    const target = erev && erev > now ? ["הדלקת נרות בעוד", erev] : null;
     const days = [...(sched?.attributes?.days || [])].sort((a, b) => (a.day_order ?? 0) - (b.day_order ?? 0));
     const flame = (x) => `<g transform="translate(${x} 0)">
         <ellipse cx="0" cy="40" rx="46" ry="60" class="halo"/>
