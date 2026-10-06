@@ -52,6 +52,8 @@ const ZDC_DEFAULTS = {
   alerts: [],
   // Sukkah lights/heaters run by schedule-helper automations; {} = off.
   sukkah: {},
+  // A second, simpler weather spot for somewhere far away: { name, entity }.
+  remote_weather: null,
 };
 
 const ZDC_HEB_DAYS = ["יום א׳", "יום ב׳", "יום ג׳", "יום ד׳", "יום ה׳", "יום ו׳", "שבת קודש"];
@@ -496,14 +498,16 @@ class ZmanDisplayCard extends HTMLElement {
     const ent = this._config?.weather;
     const conn = this._hass?.connection;
     if (!ent || !conn || this._unsubFc) return;
-    const sub = (type, key) =>
+    const sub = (type, key, entity = ent) =>
       conn
         .subscribeMessage((msg) => {
           this[key] = msg.forecast || [];
           this._dirty = true;
-        }, { type: "weather/subscribe_forecast", entity_id: ent, forecast_type: type })
+        }, { type: "weather/subscribe_forecast", entity_id: entity, forecast_type: type })
         .catch(() => null);
     this._unsubFc = [sub("hourly", "_hourly"), sub("daily", "_daily")];
+    const remote = this._config.remote_weather?.entity;
+    if (remote) this._unsubFc.push(sub("daily", "_rdaily", remote));
   }
 
   // ---------------------------------------------------------------- helpers
@@ -1069,6 +1073,7 @@ class ZmanDisplayCard extends HTMLElement {
       const dx = fcExtras(days, windMin);
       const wind = windText(a.wind_speed, a.wind_gust_speed, windMin);
       const severe = this._weatherAlerts().filter((x) => x.severe);
+      const remoteLine = this._remoteHtml(now, true);
       tiles.push(`<div class="tile weather${severe.length ? " warn" : ""}">
         ${severe.length ? `<div class="wxwarn"><ha-icon icon="${severe[0].icon}"></ha-icon>${severe.map((x) => esc(x.event) + (x.until ? ` <b>until ${esc(x.until)}</b>` : "")).join(" · ")}</div>` : ""}
         <div class="wnow">
@@ -1076,6 +1081,7 @@ class ZmanDisplayCard extends HTMLElement {
           <div><div class="wtemp">${a.temperature != null ? Math.round(a.temperature) : "--"}°</div>
           <div class="wcond">${esc(String(w.state).replace("partlycloudy", "partly cloudy").replace(/-/g, " "))}${a.humidity != null ? ` · 💧${Math.round(a.humidity)}%` : ""}${wind ? ` · <span class="wwind">${wind} ${esc(a.wind_speed_unit || "")}</span>` : ""}</div></div>
           ${today ? `<div class="whilo"><span>▲ ${Math.round(today.temperature)}°</span><span>▼ ${Math.round(today.templow ?? today.temperature)}°</span></div>` : ""}
+          ${remoteLine}
         </div>
         ${hours.length ? `<div class="hours">${hours
           .map((f, i) => {
@@ -1130,8 +1136,9 @@ class ZmanDisplayCard extends HTMLElement {
       .filter((e) => e.days >= 0)
       .sort((a, b) => a.days - b.days)
       .slice(0, c.events_max || undefined);
-    if (events.length) {
-      tiles.push(`<div class="tile events">${events
+    const remote = this._remoteHtml(now, false);
+    if (events.length || remote) {
+      tiles.push(`<div class="tile events">${remote}${events
         .map(
           (e, i) => `<div class="ev c${i % 4}"><div class="evn">${e.days === 0 ? "🎉" : e.days}<small>${e.days === 0 ? "TODAY" : e.days === 1 ? "DAY" : "DAYS"}</small></div>
             <div class="evt"><b>${esc(e.icon || "")} ${esc(e.name)}</b><small>${e.when.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</small></div></div>`
@@ -1139,6 +1146,33 @@ class ZmanDisplayCard extends HTMLElement {
         .join("")}</div>`);
     }
     return `<div class="tiles n${tiles.length}">${tiles.join("")}</div>`;
+  }
+
+  // The far-away spot (e.g. Montreal): now, today's high/low and the next 3 days.
+  // compact = one line, used in the Shabbos weather tile.
+  _remoteHtml(now, compact) {
+    const r = this._config.remote_weather;
+    const st = r && this._state(r.entity);
+    if (!st || ZDC_BAD.has(st.state)) return "";
+    const icon = (cond) => ZDC_WEATHER_ICONS[cond] || "mdi:weather-cloudy";
+    const a = st.attributes || {};
+    const days = this._rdaily || [];
+    const today = days[0];
+    const t = a.temperature != null ? `${Math.round(a.temperature)}°` : "--";
+    const hl = today ? `<span class="rhi">${Math.round(today.temperature)}°</span><span class="rlo">${Math.round(today.templow ?? today.temperature)}°</span>` : "";
+    const name = esc(r.name || st.attributes?.friendly_name || "");
+    if (compact)
+      return `<div class="rline"><span class="rname">🍁 ${name}</span><ha-icon icon="${icon(st.state)}"></ha-icon><b>${t}</b>${hl}</div>`;
+    const next = days.slice(1, 4).map((f) => {
+      const d = new Date(f.datetime);
+      const rain = over50(f.precipitation_probability);
+      return `<div class="rday"><small>${ZDC_SHORT_DAYS[d.getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><span class="rhi">${Math.round(f.temperature)}°</span><span class="rlo">${Math.round(f.templow ?? f.temperature)}°</span>${rain ? `<em>☂ ${rain}</em>` : ""}</div>`;
+    }).join("");
+    return `<div class="remote">
+      <div class="rhead"><span class="rname">🍁 ${name}</span><ha-icon icon="${icon(st.state)}"></ha-icon><b>${t}</b>
+${hl}</div>
+      ${next ? `<div class="rdays">${next}</div>` : ""}
+    </div>`;
   }
 
   // Shabbos-mode forecast: two fixed rows (hourly on top, daily below), all visible at once.
@@ -1399,6 +1433,20 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .mode { font-style:normal; font-size:11px; margin-top:2px; padding:1px 8px; border-radius:999px; }
 .mode.on { background:rgba(120,200,255,.18); color:#8fe9ff; } .mode.off { background:rgba(255,255,255,.06); color:rgba(247,241,230,.45); }
 .events { display:flex; flex-direction:column; gap:6px; }
+/* Far-away weather (Montreal): a small block at the top of the events tile. */
+.remote { padding-bottom:8px; margin-bottom:2px; border-bottom:1px solid rgba(255,255,255,.1); }
+.rhead { display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.rname { font-weight:600; font-size:19px; color:#ffd0c8; } .rhead ha-icon, .rline ha-icon { --mdc-icon-size:30px; color:#cfe3ff; }
+.rhead b { font-family:'Outfit', 'Rubik', sans-serif; font-size:36px; font-weight:700; line-height:1; }
+.rhi { color:#ffb36b; font-weight:600; } .rlo { color:#8fd3ff; }
+.rhead .rhi { margin-inline-start:auto; } .rhead .rhi, .rhead .rlo { font-size:19px; }
+.rdays { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-top:6px; }
+.rday { display:flex; align-items:center; justify-content:center; gap:5px; font-size:16px; padding:4px 0; border-radius:10px; background:rgba(255,255,255,.04); flex-wrap:wrap; }
+.rday small { color:rgba(247,241,230,.75); font-size:15px; } .rday ha-icon { --mdc-icon-size:24px; color:#cfe3ff; } .rday em { font-style:normal; font-size:13px; color:#8fd3ff; flex-basis:100%; text-align:center; }
+.rline { display:none; }
+.shabbos .wnow > .rline { flex-direction:row; }
+.shabbos .rline { display:flex; align-items:center; gap:6px; font-size:16px; white-space:nowrap; padding:4px 10px; border-radius:12px; background:rgba(255,255,255,.06); }
+.shabbos .rline b { font-family:'Outfit', 'Rubik', sans-serif; font-size:22px; } .shabbos .rline ha-icon { --mdc-icon-size:22px; display:inline-flex !important; }
 .ev { display:flex; align-items:center; gap:14px; }
 .evn { min-width:62px; text-align:center; font-family:'Outfit', 'Rubik', sans-serif; font-size:28px; font-weight:800; line-height:1; }
 .evn small { display:block; font-size:10px; letter-spacing:2px; font-weight:500; color:rgba(247,241,230,.55); margin-top:3px; }
