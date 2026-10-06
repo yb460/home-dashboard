@@ -1155,7 +1155,7 @@ class ZmanDisplayCard extends HTMLElement {
     return [].concat(this._config.remote_weather || []).filter((r) => r && r.entity);
   }
 
-  // One far-away place (e.g. Montreal): now, today's high/low and the next 3 days.
+  // One far-away place (e.g. Montreal): now, today's high/low and the next 6 days.
   _remoteHtml(r) {
     const st = this._state(r.entity);
     if (!st || ZDC_BAD.has(st.state)) return "";
@@ -1164,8 +1164,8 @@ class ZmanDisplayCard extends HTMLElement {
     const days = this._rdaily?.[r.entity] || [];
     const today = days[0];
     const hl = (f) => `<span class="rhi">${Math.round(f.temperature)}°</span><span class="rlo">${Math.round(f.templow ?? f.temperature)}°</span>`;
-    const next = days.slice(1, 4).map((f) =>
-      `<div class="rday"><small>${ZDC_SHORT_DAYS[new Date(f.datetime).getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><span class="rhi">${Math.round(f.temperature)}°</span></div>`).join("");
+    const next = days.slice(1, 7).map((f) =>
+      `<div class="rday"><small>${ZDC_SHORT_DAYS[new Date(f.datetime).getDay()]}</small><ha-icon icon="${icon(f.condition)}"></ha-icon><span class="rhi">${Math.round(f.temperature)}°</span><span class="rlo">${Math.round(f.templow ?? f.temperature)}°</span></div>`).join("");
     return `<div class="city">
       <div class="rname">${esc(r.emoji || "")} ${esc(r.name || a.friendly_name || "")}</div>
       <div class="rnow"><ha-icon icon="${icon(st.state)}"></ha-icon><b>${a.temperature != null ? Math.round(a.temperature) : "--"}°</b>${today ? `<span class="rhl">${hl(today)}</span>` : ""}</div>
@@ -1434,22 +1434,29 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 /* Rooms tile with far-away cities: the rooms in a compact grid on top, the cities
    side by side underneath. */
 .rooms.has-cities { flex-direction:column; flex-wrap:nowrap; gap:8px; }
-.rgrid { display:flex; flex-wrap:wrap; gap:8px; flex:1; align-content:stretch; }
-.has-cities .room { padding:5px 2px; gap:0; border-radius:14px; }
-.has-cities .room ha-icon { --mdc-icon-size:22px; } .has-cities .room b { font-size:32px; } .has-cities .room small { font-size:12px; }
-.cities { display:grid; grid-template-columns:repeat(auto-fit, minmax(0, 1fr)); gap:8px; }
-.city { padding:6px 8px; border-radius:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); min-width:0; }
-.rname { font-weight:600; font-size:16px; color:#ffd0c8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rgrid { display:flex; flex-wrap:wrap; gap:6px; }
+.has-cities .room { flex-direction:row; gap:6px; padding:4px 6px; border-radius:12px; }
+.has-cities .room ha-icon, .has-cities .room small { display:none !important; }
+.has-cities .room span { font-size:12px; letter-spacing:.3px; } .has-cities .room b { font-size:24px; }
+.cities { display:grid; grid-template-columns:repeat(auto-fit, minmax(0, 1fr)); gap:8px; flex:1; }
+.city { display:flex; flex-direction:column; justify-content:space-between; padding:6px 8px; border-radius:14px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); min-width:0; }
+.rname { font-weight:600; font-size:18px; color:#ffd0c8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rnow { display:flex; align-items:center; gap:6px; }
-.rnow ha-icon { --mdc-icon-size:28px; color:#cfe3ff; }
-.rnow b { font-family:'Outfit', 'Rubik', sans-serif; font-size:32px; font-weight:700; line-height:1.05; }
-.rhl { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:15px; line-height:1.15; }
+.rnow ha-icon { --mdc-icon-size:34px; color:#cfe3ff; }
+.rnow b { font-family:'Outfit', 'Rubik', sans-serif; font-size:40px; font-weight:700; line-height:1.05; }
+.rhl { margin-inline-start:auto; display:flex; flex-direction:column; align-items:flex-end; font-size:17px; line-height:1.15; }
 .rhi { color:#ffb36b; font-weight:600; } .rlo { color:#8fd3ff; }
-.rdays { display:grid; grid-template-columns:repeat(3, 1fr); gap:2px; margin-top:3px; }
-.rday { display:flex; flex-direction:column; align-items:center; font-size:14px; line-height:1.1; }
-.rday small { color:rgba(247,241,230,.7); font-size:12px; } .rday ha-icon { --mdc-icon-size:20px; color:#cfe3ff; }
-.shabbos .has-cities .room { flex:1 1 calc(100% / var(--cols, 4) - 8px); }
-.shabbos .has-cities .room b { font-size:30px; }
+.rdays { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:1px; margin-top:4px; }
+.rday { display:flex; flex-direction:column; align-items:center; font-size:15px; line-height:1.15; gap:1px; }
+.rday small { color:rgba(247,241,230,.7); font-size:12px; } .rday ha-icon { --mdc-icon-size:26px; color:#cfe3ff; } .rday .rlo { font-size:13px; }
+/* Weekday: the rooms tile is narrow but tall, so the cities stack, each with a full-width week. */
+.stage:not(.shabbos) .cities { grid-template-columns:1fr; }
+.stage:not(.shabbos) .city { display:grid; grid-template-columns:auto 1fr; grid-template-areas:"name now" "days days"; align-items:center; column-gap:10px; }
+.stage:not(.shabbos) .rname { grid-area:name; } .stage:not(.shabbos) .rnow { grid-area:now; } .stage:not(.shabbos) .rdays { grid-area:days; }
+.stage:not(.shabbos) .rhl { flex-direction:row; gap:8px; }
+.shabbos .rday { font-size:13px; gap:0; } .shabbos .rday ha-icon { --mdc-icon-size:20px; } .shabbos .rday small, .shabbos .rday .rlo { font-size:11px; }
+.shabbos .has-cities .room { flex:1 1 calc(100% / var(--cols, 4) - 6px); padding:3px 6px; }
+.shabbos .has-cities .room b { font-size:24px; } .shabbos .has-cities .room span { font-size:12px; }
 .shabbos .city ha-icon { display:inline-flex !important; }
 .ev { display:flex; align-items:center; gap:14px; }
 .evn { min-width:62px; text-align:center; font-family:'Outfit', 'Rubik', sans-serif; font-size:28px; font-weight:800; line-height:1; }
