@@ -5,7 +5,7 @@
  * the whole screen turns to candlelight with the shul schedule.
  */
 
-const ZDC_VERSION = "0.10.2";
+const ZDC_VERSION = "0.10.4";
 
 console.info(
   `%c ZMAN-DISPLAY-CARD %c v${ZDC_VERSION} `,
@@ -24,6 +24,8 @@ const ZDC_DEFAULTS = {
   upcoming_yomtov: "binary_sensor.yidcal_upcoming_yomtov",
   rosh_chodesh: "binary_sensor.yidcal_rosh_chodesh",
   shabbos_mevorchim: "binary_sensor.yidcal_shabbos_mevorchim",
+  upcoming_mevorchim: "binary_sensor.yidcal_upcoming_shabbos_mevorchim",
+  molad: "sensor.yidcal_molad",
   kiddush_levana: "binary_sensor.yidcal_kiddush_levana",
   candle_lighting: "sensor.yidcal_zman_erev",
   havdalah: "sensor.yidcal_zman_motzi",
@@ -771,10 +773,39 @@ class ZmanDisplayCard extends HTMLElement {
       const h = this._hc;
       if (h) pills.push(["📅", h.days === 1 ? `${h.name} מחר` : `עוד ${h.days} ימים ל${h.name}`, "mint"]);
     }
-    if (this._on(c.rosh_chodesh)) pills.push(["🌒", "ראש חודש", "sky"]);
-    if (this._on(c.shabbos_mevorchim)) pills.push(["🌙", "שבת מברכים", "sky"]);
+    // Rosh Chodesh: the month and its days, plus the molad, from the week before Shabbos Mevorchim
+    // until Rosh Chodesh. On Shabbos Mevorchim itself the Shabbos screen has its own panel.
+    const m = this._molad();
+    const mev = this._on(c.shabbos_mevorchim);
+    const rcA = this._state(c.rosh_chodesh)?.attributes || {};
+    const rcStart = new Date(rcA.Window_Start);
+    const rcSoon = !isNaN(rcStart) && new Date(rcA.Window_End) > new Date() && rcStart - new Date() < 8 * 86400000;
+    if (this._on(c.rosh_chodesh)) pills.push(["🌒", m ? `ראש חודש ${m.month}` : "ראש חודש", "sky"]);
+    else if (mev && this._isShabbosMode() && m) { /* shown in the Shabbos panel */ }
+    else if (m && (mev || this._on(c.upcoming_mevorchim) || rcSoon))
+      pills.push(["🌙", `${mev ? "שבת מברכים · " : ""}ר״ח ${m.month} ${m.rc.join(" ו")} · מולד ${m.day} ${m.tod} ${m.time}`, "sky"]);
+    else if (mev) pills.push(["🌙", "שבת מברכים", "sky"]);
     if (this._on(c.kiddush_levana)) pills.push(["🌕", "קידוש לבנה", "moon"]);
     return pills.map(([i, t, k]) => `<span class="chip pill ${k}">${i} ${esc(t)}</span>`).join("");
+  }
+
+  // This month's molad and Rosh Chodesh days, from YidCal's molad sensor.
+  _molad() {
+    const a = this._state(this._config.molad)?.attributes;
+    if (!a || a.Hours == null) return null;
+    const short = { זונטאג: "א׳", מאנטאג: "ב׳", דינסטאג: "ג׳", מיטוואך: "ד׳", דאנערשטאג: "ה׳", פרייטאג: "ו׳", שבת: "ש״ק", "שבת קודש": "ש״ק" };
+    // "מולד יום ראשון בבוקר, 43 דקות ..." -> "יום ראשון", "בבוקר"
+    const [, dayLong = a.Day, tod = ""] = String(a.Hebrew || "").match(/^מולד\s+(.+?)\s+(\S+),/) || [];
+    return {
+      month: a.Month_Name || "",
+      day: short[a.Day] || a.Day,
+      dayLong,
+      tod,
+      time: `${a.Hours}:${pad(a.Minutes)}`,
+      chalakim: Number(a.Chalakim) || 0,
+      rc: (a.Rosh_Chodesh_Days || []).map((d) => short[d] || d),
+      rcLong: (String(a.Full_Molad_Hebrew || "").split("ראש חודש,")[1] || "").trim(),
+    };
   }
 
   // Sukkos: rain now, or a high chance of it in the next few hours -> close the schach cover.
@@ -1049,6 +1080,7 @@ class ZmanDisplayCard extends HTMLElement {
     // Count down to candle lighting, then to shkiah; a countdown to the end of Shabbos doesn't belong on Shabbos.
     const target = erev && erev > now ? ["הדלקת נרות בעוד", erev]
       : shkia && shkia > now && (!erev || shkia - erev < 6 * 3600000) ? ["שקיעה בעוד", shkia] : null;
+    const mol = this._on(c.shabbos_mevorchim) ? this._molad() : null;
     const days = [...(sched?.attributes?.days || [])].sort((a, b) => (a.day_order ?? 0) - (b.day_order ?? 0));
     const flame = (x) => `<g transform="translate(${x} 0)">
         <ellipse cx="0" cy="40" rx="46" ry="60" class="halo"/>
@@ -1069,6 +1101,9 @@ class ZmanDisplayCard extends HTMLElement {
             <div class="st"><span>🍷 מוצאי</span><b>${fmtTime(motzi)}</b><small>${motzi ? ZDC_HEB_DAYS[motzi.getDay()] : ""}</small></div>
           </div>
           ${target ? `<div class="scd"><span>${target[0]}</span><b id="scd" data-t="${target[1].getTime()}">--:--:--</b></div>` : ""}
+          ${mol ? `<div class="mev"><div class="mevt">🌙 שבת מברכים ${esc(mol.month)}</div>
+            <div class="mevl"><span>מולד</span><b>${esc(mol.dayLong)} ${esc(mol.tod)}</b><b class="mtime">${mol.time}</b>${mol.chalakim ? `<small>ו־${mol.chalakim} חלקים</small>` : ""}</div>
+            ${mol.rcLong ? `<div class="mevl"><span>ראש חודש</span><b>${esc(mol.rcLong)}</b></div>` : ""}</div>` : ""}
         </div>
         <div class="sched" style="--days:${Math.min(Math.max(days.length, 1), 4)}">
           ${days.length
@@ -1372,6 +1407,13 @@ main > * { flex:none; }
   background:linear-gradient(90deg, rgba(255,180,90,.25), rgba(255,120,80,.15)); border:1px solid rgba(255,180,90,.5); box-shadow:0 0 30px rgba(255,150,70,.3); }
 .scd span { color:#ffd9a8; font-size:18px; white-space:nowrap; }
 .scd b { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; font-variant-numeric:tabular-nums; font-size:32px; font-weight:700; color:#fff; white-space:nowrap; }
+/* Shabbos Mevorchim: the coming month, its molad and the Rosh Chodesh days. */
+.mev { margin-top:14px; padding:8px 14px 10px; border-radius:18px; background:rgba(28,22,58,.82); border:1px solid rgba(190,170,255,.5); box-shadow:0 0 22px rgba(170,140,255,.22); }
+.mevt { font-family:'Suez One', 'Frank Ruhl Libre', serif; font-size:26px; line-height:1.2; color:#e6d9ff; }
+.mevl { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline; gap:2px 8px; margin-top:3px; font-size:19px; color:#f1ebff; }
+.mevl span { color:#b9a8ff; font-weight:600; } .mevl b { font-weight:700; } .mevl small { color:#cdbfff; font-size:16px; }
+.mevl .mtime { direction:ltr; font-family:'Outfit', 'Rubik', sans-serif; color:#fff; }
+.shab.many .mevt { font-size:22px; } .shab.many .mevl { font-size:16px; flex-direction:column; align-items:center; gap:0; } .shab.many .mev { padding:6px 8px 8px; }
 /* One column per day of the schedule (up to 4 across), sharing the full width. */
 /* Tight, high-contrast cards: solid backgrounds (nothing shows through), little padding,
    so the schedule can be drawn larger and stays crisp even with 3-4 days. */
