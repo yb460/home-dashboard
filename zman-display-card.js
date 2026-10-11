@@ -206,10 +206,6 @@ const ZDC_MOTIF = {
       <path d="M0 190 L 110 70 L 160 110 L 210 60 L 320 190 Z" fill="#2f5a3a" opacity=".8"/>
       <g transform="translate(108 6)"><path d="M0 110 V 32 a 26 26 0 0 1 52 0 V 110 Z M 54 110 V 32 a 26 26 0 0 1 52 0 V 110 Z" fill="#f3efe2" stroke="#d8c690" stroke-width="3"/>
       ${[40, 56, 72, 88].map((y) => `<path d="M10 ${y}h32M64 ${y}h32" stroke="#6f6245" stroke-width="3" opacity=".6"/>`).join("")}</g></svg>`,
-  // A new moon's crescent with a few stars, for Rosh Chodesh.
-  crescent: () => `<svg viewBox="0 0 240 200" class="motif crescent"><circle cx="120" cy="100" r="86" fill="#dfe6ff" opacity=".08"/>
-      <path d="M150 28 A 74 74 0 1 0 150 172 A 60 60 0 1 1 150 28 Z" fill="#f4f1ff"/>
-      ${[[200, 40, 7], [214, 104, 5], [190, 160, 6], [36, 54, 4]].map(([x, y, r]) => `<path d="M${x} ${y - r * 2} L${x + r * .6} ${y - r * .6} L${x + r * 2} ${y} L${x + r * .6} ${y + r * .6} L${x} ${y + r * 2} L${x - r * .6} ${y + r * .6} L${x - r * 2} ${y} L${x - r * .6} ${y - r * .6} Z" fill="#fff6c8"/>`).join("")}</svg>`,
   moon: () => `<svg viewBox="0 0 200 200" class="motif fullmoon"><circle cx="100" cy="100" r="92" fill="#fff4d6" opacity=".12"/><circle cx="100" cy="100" r="62" fill="#fff6dc"/><circle cx="80" cy="86" r="10" fill="#e9dcb8" opacity=".6"/><circle cx="118" cy="118" r="14" fill="#e9dcb8" opacity=".5"/><circle cx="118" cy="78" r="6" fill="#e9dcb8" opacity=".6"/></svg>`,
 };
 
@@ -230,8 +226,6 @@ const ZDC_THEMES = [
   { key: "shavuos", on: ["ערב שבועות", "שבועות א׳", "שבועות ב׳", "שבועות א׳ וב׳"], acc: ["#fbfff2", "#c5e1a5", "#f48fb1"], motif: "luchos", edge: "garland", float: { items: ["flower", "flower", "leaf"], colors: ["#f8bbd0", "#fff59d", "#ce93d8", "#ffffff", "#81c784"], n: 22, move: "fall" } },
   { key: "tubav", on: ["ט\"ו באב"], acc: ["#fff6f8", "#f8bbd0", "#ce93d8"], motif: "moon", float: { items: ["flower", "grapes"], colors: ["#ffffff", "#f8bbd0", "#8e5aa8"], n: 14, move: "drift" } },
   { key: "fast", on: ["צום גדליה", "צום עשרה בטבת", "צום שבעה עשר בתמוז"], acc: ["#e7ecf5", "#aebbd1", "#7f8ca6"] },
-  // Last, so a holiday that falls on Rosh Chodesh (Chanukah) keeps its own theme.
-  { key: "roshchodesh", on: ["ראש חודש"], acc: ["#f6f3ff", "#cfc6ff", "#93a9ff"], motif: "crescent", float: { items: ["star", "mote"], colors: ["#dfe6ff", "#cfc6ff", "#fff6c8"], n: 14, move: "drift" } },
 ];
 
 // ---------------------------------------------------------------- parsha art
@@ -793,7 +787,7 @@ class ZmanDisplayCard extends HTMLElement {
         const hd = Number(new Intl.DateTimeFormat("en-u-ca-hebrew", { day: "numeric" }).format(new Date()));
         if (m?.rc.length === 2) which = hd === 30 ? "א׳ ד" : hd === 1 ? "ב׳ ד" : "";
       } catch (e) { /* no Hebrew calendar support: plain "ראש חודש" */ }
-      pills.push(["🌒", `${which}ראש חודש${m ? ` ${m.month}` : ""} · יעלה ויבוא · הלל`, "gold"]);
+      pills.push(["🌒", `${which}ראש חודש${m ? ` ${m.month}` : ""} · יעלה ויבוא · הלל`, "rc"]);
     }
     else if (mev && this._isShabbosMode() && m) { /* shown in the Shabbos panel */ }
     else if (m && (mev || this._on(c.upcoming_mevorchim) || rcSoon))
@@ -1352,6 +1346,10 @@ header { display:flex; justify-content:space-between; align-items:flex-start; ga
 .pill.rain { height:auto; min-height:44px; padding:6px 18px; font-size:22px; font-weight:800; color:#fff; background:linear-gradient(90deg, #1560d8, #2b8cff);
   border:2px solid #cfe6ff; box-shadow:0 0 22px rgba(60,150,255,.6); }
 .shabbos .pill.rain { height:auto; font-size:20px; padding:5px 16px; }
+/* Rosh Chodesh: big and filled, so it can't be missed. */
+.pill.rc { height:auto; min-height:44px; padding:6px 18px; font-size:22px; font-weight:800; color:#fff; background:linear-gradient(90deg, #5b3fd6, #8a6cff);
+  border:2px solid #e3dcff; box-shadow:0 0 22px rgba(150,120,255,.6); }
+.shabbos .pill.rc { font-size:20px; padding:5px 16px; }
 .pill.mint { color:#b8f5c8; border-color:rgba(150,240,180,.45); }
 
 .alert .cd { font-variant-numeric:tabular-nums; }
@@ -1576,9 +1574,6 @@ em.rain { color:#8fd3ff; } em.hum { color:#b9e6c9; }
 .theme-shavuos .tbg { background:radial-gradient(70% 50% at 50% 0%, rgba(255,255,255,.18), transparent 70%), linear-gradient(180deg, #2c5a44 0%, #1d4034 50%, #10261f 100%); }
 .theme-tubav .tbg { background:radial-gradient(40% 35% at 50% 10%, rgba(255,244,214,.22), transparent 70%), linear-gradient(180deg, #2a1a4a 0%, #4a2350 55%, #1a0f2a 100%); }
 .theme-tishabav .tbg { background:linear-gradient(180deg, #1a1a1c 0%, #121213 60%, #0a0a0a 100%); }
-.theme-roshchodesh .tbg { background:radial-gradient(50% 40% at 50% 6%, rgba(220,215,255,.22), transparent 70%), radial-gradient(120% 100% at 50% 110%, #2a2466 0%, #141a44 55%, #070a1e 100%); }
-.stage.theme-roshchodesh .stars { opacity:.7; }
-.motif.crescent { width:15%; opacity:.95; filter:drop-shadow(0 0 30px rgba(220,215,255,.55)); }
 .theme-fast .tbg { background:linear-gradient(180deg, #1c2330 0%, #141a24 60%, #0b0f16 100%); }
 .tmotif { display:flex; justify-content:center; align-items:flex-start; padding-top:1%; }
 .motif { width:24%; height:auto; opacity:.5; filter:drop-shadow(0 0 30px rgba(255,210,140,.25)); }
